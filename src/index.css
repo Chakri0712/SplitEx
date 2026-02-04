@@ -1,0 +1,232 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+
+  /* ------------------------------------------------------------------
+     🎨 ACTIVE THEME: Midnight Black + Gold (Premium / VIP)
+     ------------------------------------------------------------------ */
+  --bg-primary: #0a0a0a;
+  /* Neutral Black */
+  --bg-secondary: #171717;
+  /* Neutral Dark Gray */
+  --bg-card: #262626;
+  /* Neutral Card Gray */
+  --bg-input: #404040;
+  /* Neutral Input */
+
+  /* Text Colors */
+  --text-primary: #FFFFFF;
+  --text-secondary: #A3A3A3;
+  --text-muted: #737373;
+
+  /* Accents */
+  --primary: #FFD700;
+  /* Pure Gold */
+  --primary-hover: #E6C200;
+  --primary-glow: rgba(255, 215, 0, 0.4);
+
+  /* Status Colors */
+  --success: #2EC4B6;
+  --danger: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.15);
+
+  /* Borders & Radius */
+  --border-color: #404040;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+
+  /* Font */
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* ------------------------------------------------------------------
+     💾 ARCHIVED THEMES (Uncomment to switch)
+     ------------------------------------------------------------------ */
+
+  /* 1️⃣ ORIGINAL: Midnight Indigo + Cyan (Default)
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --bg-card: #1e293b;
+  --bg-input: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --primary: #06b6d4;
+  --primary-hover: #0891b2;
+  --primary-glow: rgba(6, 182, 212, 0.5);
+  --success: #10b981;
+  --border-color: #334155;
+  */
+
+  /* 2️⃣ CHARCOAL + EMERALD (Finance / Serious)
+  --bg-primary: #0E1114;
+  --bg-secondary: #14191F;
+  --bg-card: #1A1F24;
+  --bg-input: #272E36;
+  --text-primary: #E6E8EB;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --primary: #34D399;
+  --primary-hover: #10B981;
+  --primary-glow: rgba(52, 211, 153, 0.4);
+  --success: #34D399;
+  --border-color: #272E36;
+  */
+
+  /* 3️⃣ DEEP NAVY + LAVENDER (Modern / SaaS)
+  --bg-primary: #0A0F1E;
+  --bg-secondary: #111827;
+  --bg-card: #161C2D;
+  --bg-input: #1F2937;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --primary: #818CF8;
+  --primary-hover: #6366F1;
+  --primary-glow: rgba(129, 140, 248, 0.4);
+  --success: #34D399;
+  --border-color: #1F2937;
+  */
+
+  /* 4️⃣ GRAPHITE + WARM TEAL (Friendly / Cozy)
+  --bg-primary: #121417;
+  --bg-secondary: #1A1D21;
+  --bg-card: #1F2933;
+  --bg-input: #2A3441;
+  --text-primary: #EDEDED;
+  --text-secondary: #A3A3A3;
+  --text-muted: #737373;
+  --primary: #2EC4B6;
+  --primary-hover: #25A296;
+  --primary-glow: rgba(46, 196, 182, 0.4);
+  --success: #2EC4B6;
+  --border-color: #2A3441;
+  */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  /* Remove blue highlight on mobile */
+}
+
+/* Custom Focus Ring */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Common Components */
+
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+/* Primary Button Style */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, #FFC107 100%);
+  /* Gold Gradient */
+  color: #000000;
+  /* Dark text on bright button */
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  box-shadow: 0 4px 6px -1px elseif(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 15px var(--primary-glow);
+  opacity: 0.95;
+}
+
+.btn-icon-round {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-round:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+/* Inputs */
+input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  width: 100%;
+  font-size: 1rem;
+}
+
+input:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.2);
+}
+
+/* Modal Overlay (Glass) */
+.modal-overlay {
+  background: rgba(2, 6, 23, 0.7);
+  backdrop-filter: blur(8px);
+}
+
+.modal-card {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-lg) !important;
+}
+
+/* Global Close Button Fix */
+.close-btn {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-muted) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px !important;
+  border-radius: 50% !important;
+  transition: all 0.2s !important;
+  box-shadow: none !important;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: var(--text-primary) !important;
+}
