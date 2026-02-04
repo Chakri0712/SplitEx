@@ -53,31 +53,10 @@ export default function GroupDetails({ session, group, onBack }) {
             }))
             setMembers(formattedMembers)
 
-            // Calculate member spending
-            const spendingMap = {}
-            let totalExpenses = 0
-
-            expensesData?.forEach(exp => {
-                const amount = parseFloat(exp.amount)
-                totalExpenses += amount
-
-                if (!spendingMap[exp.paid_by]) {
-                    spendingMap[exp.paid_by] = 0
-                }
-                spendingMap[exp.paid_by] += amount
-            })
-
-            const spendingArray = formattedMembers.map(member => ({
-                ...member,
-                spent: spendingMap[member.id] || 0,
-                percentage: totalExpenses > 0 ? ((spendingMap[member.id] || 0) / totalExpenses) * 100 : 0
-            })).sort((a, b) => b.spent - a.spent)
-
-            setMemberSpending(spendingArray)
-
             const expenseIds = (expensesData || []).map(e => e.id)
             if (expenseIds.length === 0) {
                 setBalance(0)
+                setMemberSpending([])
                 return
             }
 
@@ -87,6 +66,29 @@ export default function GroupDetails({ session, group, onBack }) {
                 .in('expense_id', expenseIds)
 
             if (splitsErr) throw splitsErr
+
+            // Calculate member spending based on their SHARE (owe_amount), not who paid
+            const spendingMap = {}
+            let totalExpenses = 0
+
+            expensesData?.forEach(exp => {
+                totalExpenses += parseFloat(exp.amount)
+            })
+
+            splits?.forEach(split => {
+                if (!spendingMap[split.user_id]) {
+                    spendingMap[split.user_id] = 0
+                }
+                spendingMap[split.user_id] += parseFloat(split.owe_amount)
+            })
+
+            const spendingArray = formattedMembers.map(member => ({
+                ...member,
+                spent: spendingMap[member.id] || 0,
+                percentage: totalExpenses > 0 ? ((spendingMap[member.id] || 0) / totalExpenses) * 100 : 0
+            })).sort((a, b) => b.spent - a.spent)
+
+            setMemberSpending(spendingArray)
 
             let myNet = 0
             expensesData.forEach(exp => {
@@ -302,7 +304,7 @@ export default function GroupDetails({ session, group, onBack }) {
                             {/* Member Spending List */}
                             {memberSpending.length > 0 && expenses.length > 0 && (
                                 <div className="member-spending-list">
-                                    <h3>Member Contributions</h3>
+                                    <h3>Members share</h3>
                                     {memberSpending.map((member, index) => {
                                         const colors = [
                                             'var(--primary)',
