@@ -6,9 +6,10 @@ import './AddExpenseModal.css'
 
 import { validateName, validateAmount } from '../utils/validation'
 
-export default function AddExpenseModal({ group, currentUser, onClose, onExpenseAdded, expenseToEdit = null, onDelete }) {
+// export default function AddExpenseModal({ group, currentUser, onClose, onExpenseAdded, expenseToEdit = null, onDelete }) {
+export default function AddExpenseModal({ group, currentUser, members, onClose, onExpenseAdded, expenseToEdit = null, onDelete }) {
     const [loading, setLoading] = useState(false)
-    const [members, setMembers] = useState([])
+    // const [members, setMembers] = useState([]) // removing local state
     const [error, setError] = useState(null)
 
     // Form State
@@ -21,9 +22,9 @@ export default function AddExpenseModal({ group, currentUser, onClose, onExpense
     const [splitMode, setSplitMode] = useState('EQUAL') // 'EQUAL' or 'UNEQUAL'
     const [customSplits, setCustomSplits] = useState({})
 
-    useEffect(() => {
-        fetchMembers()
-    }, [])
+    // useEffect(() => {
+    //     fetchMembers()
+    // }, [])
 
     // Load Expense Data & Splits for Editing
     useEffect(() => {
@@ -36,21 +37,7 @@ export default function AddExpenseModal({ group, currentUser, onClose, onExpense
         }
     }, [expenseToEdit, members])
 
-    const fetchMembers = async () => {
-        const { data } = await supabase
-            .from('group_members')
-            .select('user_id, profiles(full_name, avatar_url)')
-            .eq('group_id', group.id)
-
-        if (data) {
-            const memberList = data.map(m => ({
-                id: m.user_id,
-                name: m.profiles.full_name || 'Unknown',
-                avatar: m.profiles.avatar_url
-            }))
-            setMembers(memberList)
-        }
-    }
+    // const fetchMembers = async () => { ... } // Removed
 
     const fetchExistingSplits = async (expenseId) => {
         const { data } = await supabase
@@ -305,10 +292,12 @@ export default function AddExpenseModal({ group, currentUser, onClose, onExpense
                         <label>Amount ({group.currency})</label>
                         <input
                             type="number"
+                            inputMode="decimal"
                             placeholder="0.00"
                             step="0.01"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
+                            onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                             required
                             className="amount-input"
                         />
@@ -404,9 +393,11 @@ export default function AddExpenseModal({ group, currentUser, onClose, onExpense
                                         ) : (
                                             <input
                                                 type="number"
+                                                inputMode="decimal"
                                                 placeholder="0.00"
                                                 value={customSplits[member.id] || ''}
                                                 onChange={(e) => handleCustomSplitChange(member.id, e.target.value)}
+                                                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                                                 className="custom-amount-input"
                                             />
                                         )}

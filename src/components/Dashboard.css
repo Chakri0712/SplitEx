@@ -51,6 +51,23 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* Avatar Replacement */
+.header-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--primary);
+    /* Gold background for visibility */
+    border: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1f2937;
+    /* Dark icon color for contrast */
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(234, 179, 8, 0.2);
+}
+
 /* List View */
 .groups-list {
     display: flex;

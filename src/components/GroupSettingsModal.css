@@ -128,12 +128,20 @@
     padding-bottom: 0;
 }
 
-.member-avatar {
+.member-avatar-placeholder {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    object-fit: cover;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+}
+
+.default-avatar-icon {
+    opacity: 0.7;
 }
 
 .member-info {

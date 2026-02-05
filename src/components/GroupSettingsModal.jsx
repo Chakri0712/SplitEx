@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
-import { X, LogOut, Save, Trash2, Copy, Check } from 'lucide-react'
+import { X, LogOut, Save, Trash2, Copy, Check, User } from 'lucide-react'
 import './CreateGroupModal.css'
 import './GroupSettingsModal.css'
 
@@ -213,11 +213,9 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                         <div className="members-list-scroll">
                             {members.map((member) => (
                                 <div key={member.user_id} className="member-row">
-                                    <img
-                                        src={member.profile?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.profile?.full_name || 'User')}&background=random`}
-                                        alt="Avatar"
-                                        className="member-avatar"
-                                    />
+                                    <div className="member-avatar-placeholder">
+                                        <User size={20} className="default-avatar-icon" />
+                                    </div>
                                     <div className="member-info">
                                         <span className="member-name">
                                             {member.profile?.full_name || 'Unknown User'}

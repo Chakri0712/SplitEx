@@ -5,6 +5,8 @@ import { X, LogOut, Mail, User } from 'lucide-react'
 import './Profile.css'
 import { validateName } from '../utils/validation'
 
+// No changes needed for Profile.jsx regarding "lettering in member icon" as it only uses form inputs. StartLine/EndLine are dummy.
+// Check GroupDetails.jsx instead.
 export default function Profile({ session }) {
     const navigate = useNavigate()
     const [loading, setLoading] = useState(false)

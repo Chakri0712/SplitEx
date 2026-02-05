@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Users, LogOut, ExternalLink, UserPlus } from 'lucide-react'
+import { Plus, Users, LogOut, ExternalLink, UserPlus, User } from 'lucide-react'
 import CreateGroupModal from './CreateGroupModal'
 import JoinGroupModal from './JoinGroupModal'
 import './Dashboard.css'
@@ -55,11 +55,9 @@ export default function Dashboard({ session, onGroupSelect }) {
                     <p>Welcome, {session.user.user_metadata?.full_name || 'User'}</p>
                 </div>
                 <button onClick={() => navigate('/profile')} className="profile-btn-header" title="My Profile">
-                    <img
-                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(session.user.user_metadata?.full_name || 'User')}&background=random&rounded=true`}
-                        alt="Profile"
-                        className="header-avatar"
-                    />
+                    <div className="header-avatar-placeholder">
+                        <User size={20} />
+                    </div>
                 </button>
             </header>
 

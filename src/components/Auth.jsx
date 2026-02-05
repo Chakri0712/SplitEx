@@ -50,7 +50,7 @@ export default function Auth() {
                         emailRedirectTo: window.location.origin,
                         data: {
                             full_name: fullName,
-                            avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=random`,
+                            // avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=random`, // Removed to use generic icon
                         },
                     },
                 })

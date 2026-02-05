@@ -3,9 +3,10 @@ import { supabase } from '../supabaseClient'
 import { X, Loader2, ArrowRight, Trash2 } from 'lucide-react'
 import './SettleUpModal.css'
 
-export default function SettleUpModal({ group, currentUser, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
+// export default function SettleUpModal({ group, currentUser, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
+export default function SettleUpModal({ group, currentUser, members, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
     const [loading, setLoading] = useState(false)
-    const [members, setMembers] = useState([])
+    // const [members, setMembers] = useState([]) // removing local state
     const [debts, setDebts] = useState({}) // { [payerId]: { [receiverId]: amount } }
 
     // Form State
@@ -14,36 +15,13 @@ export default function SettleUpModal({ group, currentUser, onClose, onPaymentRe
     const [amount, setAmount] = useState('')
 
     useEffect(() => {
-        fetchMembers()
+        // fetchMembers() // removing call
         fetchDebts()
     }, [])
 
-    // Load Expense Data for Editing
-    useEffect(() => {
-        if (expenseToEdit) {
-            setPayer(expenseToEdit.paid_by)
-            setAmount(expenseToEdit.amount)
-            // Fetch the receiver (who owes 100% of this split)
-            fetchReceiver(expenseToEdit.id)
-        }
-    }, [expenseToEdit])
+    // ...
 
-
-    const fetchMembers = async () => {
-        const { data } = await supabase
-            .from('group_members')
-            .select('user_id, profiles(full_name, avatar_url)')
-            .eq('group_id', group.id)
-
-        if (data) {
-            const formattedMembers = data.map(m => ({
-                id: m.user_id,
-                name: m.profiles.full_name || 'Unknown',
-                avatar: m.profiles.avatar_url
-            }))
-            setMembers(formattedMembers)
-        }
-    }
+    // const fetchMembers = async () => { ... } // Removed
 
     const fetchDebts = async () => {
         const { data: expenses } = await supabase
@@ -82,6 +60,16 @@ export default function SettleUpModal({ group, currentUser, onClose, onPaymentRe
         })
         setDebts(netBalances)
     }
+
+    // Load Expense Data for Editing
+    useEffect(() => {
+        if (expenseToEdit) {
+            setPayer(expenseToEdit.paid_by)
+            setAmount(expenseToEdit.amount) // Ensure amount is set
+            // Fetch the receiver (who owes 100% of this split)
+            fetchReceiver(expenseToEdit.id)
+        }
+    }, [expenseToEdit])
 
     const fetchReceiver = async (expenseId) => {
         const { data } = await supabase
@@ -132,7 +120,7 @@ export default function SettleUpModal({ group, currentUser, onClose, onPaymentRe
         try {
             const payerName = members.find(m => m.id === payer)?.name || 'Someone'
             const receiverName = members.find(m => m.id === receiver)?.name || 'Someone'
-            const description = `Payment to ${receiverName}`
+            const description = `Settlement to ${receiverName}`
 
             let expenseId = expenseToEdit?.id
 
@@ -199,7 +187,7 @@ export default function SettleUpModal({ group, currentUser, onClose, onPaymentRe
         <div className="modal-overlay">
             <div className="modal-card">
                 <div className="modal-header">
-                    <h2>{expenseToEdit ? 'Edit Payment' : 'Settle Up'}</h2>
+                    <h2>{expenseToEdit ? 'Edit Settlement' : 'Settle Up'}</h2>
                     <button onClick={onClose} className="close-btn">
                         <X size={24} />
                     </button>
@@ -257,10 +245,12 @@ export default function SettleUpModal({ group, currentUser, onClose, onPaymentRe
                         <label>Amount ({group.currency})</label>
                         <input
                             type="number"
+                            inputMode="decimal"
                             placeholder="0.00"
                             step="0.01"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
+                            onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                             required
                             className="amount-input settle-input"
                             autoFocus
@@ -268,7 +258,7 @@ export default function SettleUpModal({ group, currentUser, onClose, onPaymentRe
                     </div>
 
                     <button type="submit" disabled={loading} className="create-btn settle-btn">
-                        {loading ? <Loader2 className="spin" /> : (expenseToEdit ? 'Update Payment' : 'Record Payment')}
+                        {loading ? <Loader2 className="spin" /> : (expenseToEdit ? 'Update Settlement' : 'Record Settlement')}
                     </button>
 
                     {expenseToEdit && (
@@ -279,7 +269,7 @@ export default function SettleUpModal({ group, currentUser, onClose, onPaymentRe
                             className="delete-expense-btn"
                             style={{ marginTop: '1rem', width: '100%', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600' }}
                         >
-                            <Trash2 size={18} /> Delete Payment
+                            <Trash2 size={18} /> Delete Settlement
                         </button>
                     )}
                 </form>

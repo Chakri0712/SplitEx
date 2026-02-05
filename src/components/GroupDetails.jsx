@@ -38,7 +38,7 @@ export default function GroupDetails({ session, group, onBack }) {
             if (expensesError) throw expensesError
             setExpenses(expensesData || [])
 
-            // Fetch members
+            // Fetch current members
             const { data: membersData, error: membersError } = await supabase
                 .from('group_members')
                 .select('user_id, profiles(full_name, avatar_url)')
@@ -46,15 +46,15 @@ export default function GroupDetails({ session, group, onBack }) {
 
             if (membersError) throw membersError
 
-            const formattedMembers = (membersData || []).map(m => ({
-                id: m.user_id,
-                name: m.profiles?.full_name || 'Unknown',
-                avatar: m.profiles?.avatar_url
-            }))
-            setMembers(formattedMembers)
-
             const expenseIds = (expensesData || []).map(e => e.id)
             if (expenseIds.length === 0) {
+                // If no expenses, just show current members
+                const formattedMembers = (membersData || []).map(m => ({
+                    id: m.user_id,
+                    name: m.profiles?.full_name || 'Unknown',
+                    avatar: m.profiles?.avatar_url
+                }))
+                setMembers(formattedMembers)
                 setBalance(0)
                 setMemberSpending([])
                 return
@@ -67,7 +67,60 @@ export default function GroupDetails({ session, group, onBack }) {
 
             if (splitsErr) throw splitsErr
 
-            // Calculate member spending based on their SHARE (owe_amount), not who paid
+            // COLLECT ALL INVOLVED USERS (Current Members + Historical Payers + Split Participants)
+            const allInvolvedUserIds = new Set()
+
+            // Add current members
+            membersData?.forEach(m => allInvolvedUserIds.add(m.user_id))
+
+            // Add expense payers
+            expensesData?.forEach(e => allInvolvedUserIds.add(e.paid_by))
+
+            // Add split people
+            splits?.forEach(s => allInvolvedUserIds.add(s.user_id))
+
+            const uniqueUserIds = Array.from(allInvolvedUserIds)
+
+            // Fetch profiles for everyone involved
+            const { data: profilesData, error: profilesError } = await supabase
+                .from('profiles')
+                .select('id, full_name, avatar_url')
+                .in('id', uniqueUserIds)
+
+            if (profilesError) throw profilesError
+
+            // Map profiles to a friendly objects map
+            const profilesMap = {}
+            profilesData?.forEach(p => {
+                profilesMap[p.id] = p
+            })
+
+            // Identify current member IDs for tagging ex-members if needed (optional)
+            const currentMemberIds = new Set(membersData?.map(m => m.user_id))
+
+            // Build the final member list for display
+            // We iterate over uniqueUserIds so we include everyone
+            const historicalMembers = uniqueUserIds.map(uid => {
+                const profile = profilesMap[uid]
+                const isCurrent = currentMemberIds.has(uid)
+                return {
+                    id: uid,
+                    name: (profile?.full_name || 'Unknown') + (!isCurrent ? ' (Left)' : ''),
+                    avatar: profile?.avatar_url,
+                    isCurrent: isCurrent
+                }
+            })
+
+            // Sort: Current members first, then others
+            historicalMembers.sort((a, b) => {
+                if (a.isCurrent && !b.isCurrent) return -1
+                if (!a.isCurrent && b.isCurrent) return 1
+                return a.name.localeCompare(b.name)
+            })
+
+            setMembers(historicalMembers)
+
+            // Calculate member spending based on their SHARE (owe_amount)
             const spendingMap = {}
             let totalExpenses = 0
 
@@ -82,7 +135,7 @@ export default function GroupDetails({ session, group, onBack }) {
                 spendingMap[split.user_id] += parseFloat(split.owe_amount)
             })
 
-            const spendingArray = formattedMembers.map(member => ({
+            const spendingArray = historicalMembers.map(member => ({
                 ...member,
                 spent: spendingMap[member.id] || 0,
                 percentage: totalExpenses > 0 ? ((spendingMap[member.id] || 0) / totalExpenses) * 100 : 0
@@ -350,6 +403,7 @@ export default function GroupDetails({ session, group, onBack }) {
                 <AddExpenseModal
                     group={currentGroup}
                     currentUser={session.user}
+                    members={members}
                     onClose={closeExpenseModal}
                     onExpenseAdded={handleDataChanged}
                     expenseToEdit={expenseToEdit}
@@ -361,6 +415,7 @@ export default function GroupDetails({ session, group, onBack }) {
                 <SettleUpModal
                     group={currentGroup}
                     currentUser={session.user}
+                    members={members}
                     onClose={closeSettleModal}
                     onPaymentRecorded={handleDataChanged}
                     expenseToEdit={expenseToEdit}
