@@ -9,7 +9,8 @@ import { validateName } from '../utils/validation'
 // Check GroupDetails.jsx instead.
 export default function Profile({ session }) {
     const navigate = useNavigate()
-    const [loading, setLoading] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
+    const [isSigningOut, setIsSigningOut] = useState(false)
     const { user } = session
     const [fullName, setFullName] = useState(user.user_metadata?.full_name || '')
     const [email] = useState(user.email)
@@ -29,7 +30,7 @@ export default function Profile({ session }) {
 
         if (fullName === user.user_metadata?.full_name) return
 
-        setLoading(true)
+        setIsSaving(true)
         try {
             // 1. Update public profile
             const { error: profileError } = await supabase
@@ -52,12 +53,12 @@ export default function Profile({ session }) {
             console.error('Error updating profile:', error)
             alert('Failed to update profile')
         } finally {
-            setLoading(false)
+            setIsSaving(false)
         }
     }
 
     const handleSignOut = async () => {
-        setLoading(true)
+        setIsSigningOut(true)
         try {
             const { error } = await supabase.auth.signOut()
             if (error) throw error
@@ -66,7 +67,7 @@ export default function Profile({ session }) {
             console.error('Error signing out:', error)
             alert('Error signing out')
         } finally {
-            setLoading(false)
+            setIsSigningOut(false)
         }
     }
 
@@ -119,18 +120,18 @@ export default function Profile({ session }) {
                         <button
                             className="update-btn"
                             onClick={handleUpdate}
-                            disabled={loading || fullName === user.user_metadata?.full_name}
+                            disabled={isSaving || isSigningOut || fullName === user.user_metadata?.full_name}
                         >
-                            {loading ? 'Saving...' : 'Save Changes'}
+                            {isSaving ? 'Saving...' : 'Save Changes'}
                         </button>
 
                         <button
                             className="sign-out-btn"
                             onClick={handleSignOut}
-                            disabled={loading}
+                            disabled={isSaving || isSigningOut}
                         >
                             <LogOut size={20} />
-                            Sign Out
+                            {isSigningOut ? 'Signing Out...' : 'Sign Out'}
                         </button>
                     </div>
                 </div>

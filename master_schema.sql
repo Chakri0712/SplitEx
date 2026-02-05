@@ -152,6 +152,12 @@ create policy "Delete groups" on groups for delete using (
   created_by = auth.uid()
 );
 
+create policy "Allow last member to delete group" on groups for delete using (
+  (select count(*) from group_members where group_id = id) = 1
+  and
+  (auth.uid() in (select user_id from group_members where group_id = id))
+);
+
 -- 6. TRIGGERS
 create or replace function public.handle_new_user()
 returns trigger as $$

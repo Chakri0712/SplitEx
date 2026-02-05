@@ -68,6 +68,25 @@
     box-shadow: 0 2px 8px rgba(234, 179, 8, 0.2);
 }
 
+.home-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.home-btn:hover {
+    color: var(--primary);
+    transform: translateY(-1px);
+}
+
+
 /* List View */
 .groups-list {
     display: flex;

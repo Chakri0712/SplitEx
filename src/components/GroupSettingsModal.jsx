@@ -154,12 +154,16 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
 
         setLoading(true)
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('groups')
                 .delete()
                 .eq('id', group.id)
+                .select()
 
             if (error) throw error
+            if (!data || data.length === 0) {
+                throw new Error('Permission denied. Database policy prevented deletion.')
+            }
 
             onGroupLeft()
             onClose()
@@ -247,8 +251,8 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                             {error && <div className="error-text" style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '6px' }}>{error}</div>}
                         </div>
 
-                        {/* Only show Save button for Admin */}
-                        {group.created_by === currentUser.id && (
+                        {/* Only show Save button for Admin or if only 1 member left */}
+                        {(group.created_by === currentUser.id || memberCount === 1) && (
                             <button
                                 type="submit"
                                 disabled={loading || name === group.name}
@@ -268,8 +272,8 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                             <LogOut size={18} /> Leave Group
                         </button>
 
-                        {/* Only show Delete button for Admin and if only 1 member (themselves) */}
-                        {group.created_by === currentUser.id && memberCount === 1 && (
+                        {/* Show Delete button for Admin OR if only 1 member (themselves) */}
+                        {(group.created_by === currentUser.id || memberCount === 1) && (
                             <button
                                 onClick={handleDeleteGroup}
                                 disabled={loading}

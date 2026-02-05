@@ -54,11 +54,19 @@ export default function Dashboard({ session, onGroupSelect }) {
                     <h1>My Groups</h1>
                     <p>Welcome, {session.user.user_metadata?.full_name || 'User'}</p>
                 </div>
-                <button onClick={() => navigate('/profile')} className="profile-btn-header" title="My Profile">
-                    <div className="header-avatar-placeholder">
-                        <User size={20} />
-                    </div>
-                </button>
+                <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <button
+                        onClick={() => navigate('/')}
+                        className="home-btn"
+                    >
+                        Home
+                    </button>
+                    <button onClick={() => navigate('/profile')} className="profile-btn-header" title="My Profile">
+                        <div className="header-avatar-placeholder">
+                            <User size={20} />
+                        </div>
+                    </button>
+                </div>
             </header>
 
             {loading ? (

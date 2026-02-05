@@ -96,18 +96,33 @@ export default function LandingPage({ session }) {
                 <div className="features-grid">
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />
-                        <h3>Unequal Split</h3>
-                        <p>Advanced split options. By shares, percentage or exact amounts.</p>
+                        <h3>Smart Splits</h3>
+                        <p>Split equally, unequally, or by shares. We handle the math.</p>
                     </div>
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />
-                        <h3>PWA support</h3>
-                        <p>Install it as a PWA and you won't even notice it's a web app!</p>
+                        <h3>Visual Balances</h3>
+                        <p>Detailed member breakdown bars and lists show exactly who owes what.</p>
                     </div>
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />
-                        <h3>Real-time Sync</h3>
-                        <p>All your groups and expenses sync instantly across devices.</p>
+                        <h3>Easy Settlements</h3>
+                        <p>Record payments and settle up debts with just a few clicks.</p>
+                    </div>
+                    <div className="feature-card">
+                        <CheckCircle2 className="feature-icon" />
+                        <h3>Group Management</h3>
+                        <p>Invite friends via code, manage permissions, and control your groups.</p>
+                    </div>
+                    <div className="feature-card">
+                        <CheckCircle2 className="feature-icon" />
+                        <h3>Profile Customization</h3>
+                        <p>Set your display name and identity across all your groups.</p>
+                    </div>
+                    <div className="feature-card">
+                        <CheckCircle2 className="feature-icon" />
+                        <h3>Mobile Operating</h3>
+                        <p>Optimized for any device. Install as a PWA for a native app feel.</p>
                     </div>
                 </div>
             </section>
