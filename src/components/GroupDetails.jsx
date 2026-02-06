@@ -1,10 +1,11 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
-import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil } from 'lucide-react'
+import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info } from 'lucide-react'
 import AddExpenseModal from './AddExpenseModal'
 import SettleUpModal from './SettleUpModal'
 import GroupSettingsModal from './GroupSettingsModal'
+import SettlementDetailsModal from './SettlementDetailsModal'
 import './GroupDetails.css'
 
 export default function GroupDetails({ session, group, onBack }) {
@@ -19,6 +20,7 @@ export default function GroupDetails({ session, group, onBack }) {
     const [activeTab, setActiveTab] = useState('expenses')
     const [members, setMembers] = useState([])
     const [memberSpending, setMemberSpending] = useState([])
+    const [selectedSettlement, setSelectedSettlement] = useState(null)
 
     useEffect(() => {
         fetchData()
@@ -319,15 +321,23 @@ export default function GroupDetails({ session, group, onBack }) {
                                         </span>
                                     </div>
                                     <div className="expense-actions">
-                                        <button
-                                            className="action-btn edit"
-                                            onClick={() => handleEditExpense(expense)}
-                                            title="Edit"
-                                            style={{ opacity: 1 }}
-                                        >
-                                            <Pencil size={18} />
-                                        </button>
-                                        {/* Delete moved to Edit Modal */}
+                                        {expense.category === 'settlement' ? (
+                                            <button
+                                                className="action-btn info"
+                                                onClick={() => setSelectedSettlement(expense)}
+                                                title="View Details"
+                                            >
+                                                <Info size={18} />
+                                            </button>
+                                        ) : (
+                                            <button
+                                                className="action-btn edit"
+                                                onClick={() => handleEditExpense(expense)}
+                                                title="Edit"
+                                            >
+                                                <Pencil size={18} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -430,6 +440,16 @@ export default function GroupDetails({ session, group, onBack }) {
                     onClose={() => setIsSettingsModalOpen(false)}
                     onGroupUpdated={handleGroupUpdated}
                     onGroupLeft={onBack}
+                />
+            )}
+
+            {selectedSettlement && (
+                <SettlementDetailsModal
+                    expense={selectedSettlement}
+                    currentUser={session.user}
+                    members={members}
+                    onClose={() => setSelectedSettlement(null)}
+                    onUpdate={handleDataChanged}
                 />
             )}
         </div>

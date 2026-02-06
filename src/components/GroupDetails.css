@@ -275,6 +275,10 @@
     color: var(--text-primary);
 }
 
+.action-btn.info:hover {
+    color: #8b5cf6;
+}
+
 /* Mobile */
 @media (max-width: 640px) {
     .expense-actions {

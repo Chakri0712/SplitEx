@@ -81,3 +81,48 @@
     text-align: center;
     width: 100%;
 }
+
+/* Dual Settlement Buttons */
+.settlement-options {
+    display: flex;
+    gap: 12px;
+    margin-top: 0.5rem;
+}
+
+.settle-option-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 12px;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--border-color);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.settle-option-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.settle-option-btn.manual:not(:disabled):hover {
+    border-color: var(--primary);
+    background: rgba(234, 179, 8, 0.1);
+    color: var(--primary);
+}
+
+.settle-option-btn.upi:not(:disabled):hover {
+    border-color: var(--primary);
+    background: rgba(234, 179, 8, 0.1);
+    color: var(--primary);
+}
+
+.settle-option-btn.upi {
+    border-color: var(--border-color);
+}

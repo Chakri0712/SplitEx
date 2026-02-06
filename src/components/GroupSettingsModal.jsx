@@ -10,6 +10,7 @@ import { validateName } from '../utils/validation'
 export default function GroupSettingsModal({ group, currentUser, onClose, onGroupUpdated, onGroupLeft }) {
     const [loading, setLoading] = useState(false)
     const [name, setName] = useState(group.name)
+    const [currency, setCurrency] = useState(group.currency)
     const [copied, setCopied] = useState(false)
     const [members, setMembers] = useState([])
     const [memberCount, setMemberCount] = useState(0)
@@ -55,13 +56,13 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
             return
         }
 
-        if (name.trim() === group.name) return
+        if (name.trim() === group.name && currency === group.currency) return
 
         setLoading(true)
         try {
             const { data, error } = await supabase
                 .from('groups')
-                .update({ name: name.trim() })
+                .update({ name: name.trim(), currency: currency })
                 .eq('id', group.id)
                 .select()
                 .single()
@@ -251,12 +252,26 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                             {error && <div className="error-text" style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '6px' }}>{error}</div>}
                         </div>
 
-                        {/* Only show Save button for Admin or if only 1 member left */}
+                        <div className="form-group">
+                            <label>Currency</label>
+                            <select
+                                value={currency}
+                                onChange={(e) => setCurrency(e.target.value)}
+                                disabled={group.created_by !== currentUser.id && memberCount !== 1}
+                                className="currency-select"
+                            >
+                                <option value="USD">USD - US Dollar</option>
+                                <option value="INR">INR - Indian Rupee</option>
+                                <option value="EUR">EUR - Euro</option>
+                                <option value="GBP">GBP - British Pound</option>
+                            </select>
+                        </div>
+
                         {(group.created_by === currentUser.id || memberCount === 1) && (
                             <button
                                 type="submit"
-                                disabled={loading || name === group.name}
-                                className="create-btn mb-8"
+                                disabled={loading || (name === group.name && currency === group.currency)}
+                                className="save-btn mb-8"
                             >
                                 {loading ? <div className="spin"></div> : 'Save Changes'}
                             </button>

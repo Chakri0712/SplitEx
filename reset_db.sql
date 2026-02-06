@@ -4,6 +4,7 @@
 -- ============================================================================
 
 -- 1. Drop Application Tables (Order matters due to foreign keys)
+DROP TABLE IF EXISTS settlement_details CASCADE;
 DROP TABLE IF EXISTS expense_splits CASCADE;
 DROP TABLE IF EXISTS expenses CASCADE;
 DROP TABLE IF EXISTS group_members CASCADE;

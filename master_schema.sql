@@ -158,6 +158,43 @@ create policy "Allow last member to delete group" on groups for delete using (
   (auth.uid() in (select user_id from group_members where group_id = id))
 );
 
+-- Settlement Details Table (for tracking settlement confirmations)
+create table settlement_details (
+  id uuid primary key default uuid_generate_v4(),
+  expense_id uuid references expenses(id) on delete cascade unique,
+  settlement_method text check (settlement_method in ('manual', 'upi')) not null,
+  settlement_status text check (settlement_status in ('pending_utr', 'pending_confirmation', 'confirmed', 'disputed')) not null,
+  utr_reference text,
+  initiated_by uuid references profiles(id) not null,
+  initiated_at timestamp with time zone default now(),
+  confirmed_by uuid references profiles(id),
+  confirmed_at timestamp with time zone,
+  created_at timestamp with time zone default now()
+);
+
+alter table settlement_details enable row level security;
+
+create policy "View settlement details for group members" on settlement_details for select using (
+  expense_id in (
+    select e.id from expenses e
+    join group_members gm on e.group_id = gm.group_id
+    where gm.user_id = auth.uid()
+  )
+);
+
+create policy "Create settlement details" on settlement_details for insert with check (
+  initiated_by = auth.uid()
+);
+
+create policy "Update settlement details" on settlement_details for update using (
+  initiated_by = auth.uid() or
+  expense_id in (
+    select e.id from expenses e
+    join expense_splits es on e.id = es.expense_id
+    where es.user_id = auth.uid()
+  )
+);
+
 -- 6. TRIGGERS
 create or replace function public.handle_new_user()
 returns trigger as $$

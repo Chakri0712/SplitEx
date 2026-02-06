@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabaseClient'
-import { X, Loader2, ArrowRight, Trash2 } from 'lucide-react'
+import { X, Loader2, ArrowRight, Trash2, Smartphone, HandCoins } from 'lucide-react'
 import './SettleUpModal.css'
 
 // export default function SettleUpModal({ group, currentUser, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
@@ -13,6 +13,11 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
     const [payer, setPayer] = useState(currentUser.id)
     const [receiver, setReceiver] = useState('')
     const [amount, setAmount] = useState('')
+
+    // Settlement Flow State
+    const [showUtrPrompt, setShowUtrPrompt] = useState(false)
+    const [utrReference, setUtrReference] = useState('')
+    const [pendingExpenseId, setPendingExpenseId] = useState(null)
 
     useEffect(() => {
         // fetchMembers() // removing call
@@ -112,54 +117,198 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
         }
     }, [availableReceivers, receiver, expenseToEdit])
 
-    const handleSettle = async (e) => {
+    // Create Settlement Record (shared logic)
+    const createSettlementRecord = async (method) => {
+        const receiverName = members.find(m => m.id === receiver)?.name || 'Someone'
+        const description = `Settlement to ${receiverName}`
+
+        const { data: expense, error: expenseError } = await supabase
+            .from('expenses')
+            .insert({
+                group_id: group.id,
+                paid_by: payer,
+                amount: parseFloat(amount),
+                description: description,
+                category: 'settlement',
+                date: new Date().toISOString()
+            })
+            .select()
+            .single()
+
+        if (expenseError) throw expenseError
+
+        const { error: splitError } = await supabase
+            .from('expense_splits')
+            .insert({
+                expense_id: expense.id,
+                user_id: receiver,
+                owe_amount: parseFloat(amount)
+            })
+
+        if (splitError) throw splitError
+
+        return expense.id
+    }
+
+    // Insert Settlement Details
+    const insertSettlementDetails = async (expenseId, method, status, utr = null) => {
+        const { error } = await supabase
+            .from('settlement_details')
+            .insert({
+                expense_id: expenseId,
+                settlement_method: method,
+                settlement_status: status,
+                utr_reference: utr,
+                initiated_by: currentUser.id
+            })
+
+        if (error) throw error
+    }
+
+    // Get max amount user can settle (amount owed to receiver)
+    const getMaxSettleAmount = () => {
+        if (!payer || !receiver) return Infinity
+        const payerDebts = debts[payer] || {}
+        return payerDebts[receiver] || 0
+    }
+
+    // Handle Manual Settlement
+    const handleManualSettle = async () => {
+        if (!amount || !receiver) return
+
+        const maxAmount = getMaxSettleAmount()
+        if (parseFloat(amount) > maxAmount + 0.01) {
+            alert(`You can only settle up to ${group.currency} ${maxAmount.toFixed(2)} that you owe.`)
+            return
+        }
+
+        setLoading(true)
+        try {
+            const expenseId = await createSettlementRecord('manual')
+            await insertSettlementDetails(expenseId, 'manual', 'pending_confirmation')
+
+            onPaymentRecorded()
+            onClose()
+        } catch (error) {
+            console.error('Error settling up:', error)
+            alert('Failed to record settlement: ' + error.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // Handle UPI Settlement
+    const handleUpiSettle = async () => {
+        if (!amount || !receiver) return
+
+        const maxAmount = getMaxSettleAmount()
+        if (parseFloat(amount) > maxAmount + 0.01) {
+            alert(`You can only settle up to ${group.currency} ${maxAmount.toFixed(2)} that you owe.`)
+            return
+        }
+
+        setLoading(true)
+        try {
+            const expenseId = await createSettlementRecord('upi')
+            await insertSettlementDetails(expenseId, 'upi', 'pending_utr')
+            setPendingExpenseId(expenseId)
+
+            // Generate UPI Intent Link
+            const upiAmount = parseFloat(amount).toFixed(2)
+            const note = encodeURIComponent(`SplitEx Settlement - ${group.name}`)
+            const upiLink = `upi://pay?am=${upiAmount}&cu=INR&tn=${note}`
+
+            // Open UPI App
+            window.location.href = upiLink
+
+            // Show UTR prompt after a short delay (user comes back from UPI app)
+            setTimeout(() => {
+                setShowUtrPrompt(true)
+                setLoading(false)
+            }, 1000)
+
+        } catch (error) {
+            console.error('Error initiating UPI payment:', error)
+            alert('Failed to initiate UPI payment: ' + error.message)
+            setLoading(false)
+        }
+    }
+
+    // Validate UTR format (12-16 numeric digits)
+    const validateUtr = (utr) => {
+        const cleanUtr = utr.trim()
+        if (!/^\d+$/.test(cleanUtr)) {
+            return 'UTR must contain only numbers'
+        }
+        if (cleanUtr.length < 12 || cleanUtr.length > 16) {
+            return 'UTR must be between 12-16 digits'
+        }
+        return null
+    }
+
+    // Save UTR Reference
+    const handleSaveUtr = async () => {
+        const utrError = validateUtr(utrReference)
+        if (utrError) {
+            alert(utrError)
+            return
+        }
+
+        setLoading(true)
+        try {
+            const { error } = await supabase
+                .from('settlement_details')
+                .update({
+                    utr_reference: utrReference.trim(),
+                    settlement_status: 'pending_confirmation'
+                })
+                .eq('expense_id', pendingExpenseId)
+
+            if (error) throw error
+
+            onPaymentRecorded()
+            onClose()
+        } catch (error) {
+            console.error('Error saving UTR:', error)
+            alert('Failed to save UTR: ' + error.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // Cancel UTR - Close modal, settlement stays as pending_utr (user can add UTR later)
+    const handleCancelUtr = () => {
+        onPaymentRecorded()
+        onClose()
+    }
+
+    // Edit Mode: Update existing settlement
+    const handleUpdate = async (e) => {
         e.preventDefault()
         if (!amount || !receiver) return
 
         setLoading(true)
         try {
-            const payerName = members.find(m => m.id === payer)?.name || 'Someone'
             const receiverName = members.find(m => m.id === receiver)?.name || 'Someone'
             const description = `Settlement to ${receiverName}`
 
-            let expenseId = expenseToEdit?.id
+            const { error: updateError } = await supabase
+                .from('expenses')
+                .update({
+                    paid_by: payer,
+                    amount: parseFloat(amount),
+                    description: description
+                })
+                .eq('id', expenseToEdit.id)
 
-            if (expenseToEdit) {
-                // UPDATE
-                const { error: updateError } = await supabase
-                    .from('expenses')
-                    .update({
-                        paid_by: payer,
-                        amount: parseFloat(amount),
-                        description: description
-                    })
-                    .eq('id', expenseId)
+            if (updateError) throw updateError
 
-                if (updateError) throw updateError
-                await supabase.from('expense_splits').delete().eq('expense_id', expenseId)
-            } else {
-                // CREATE
-                const { data: expense, error: expenseError } = await supabase
-                    .from('expenses')
-                    .insert({
-                        group_id: group.id,
-                        paid_by: payer,
-                        amount: parseFloat(amount),
-                        description: description,
-                        category: 'settlement',
-                        date: new Date().toISOString()
-                    })
-                    .select()
-                    .single()
-
-                if (expenseError) throw expenseError
-                expenseId = expense.id
-            }
+            await supabase.from('expense_splits').delete().eq('expense_id', expenseToEdit.id)
 
             const { error: splitError } = await supabase
                 .from('expense_splits')
                 .insert({
-                    expense_id: expenseId,
+                    expense_id: expenseToEdit.id,
                     user_id: receiver,
                     owe_amount: parseFloat(amount)
                 })
@@ -169,8 +318,8 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
             onPaymentRecorded()
             onClose()
         } catch (error) {
-            console.error('Error settling up:', error)
-            alert('Failed to record payment: ' + error.message)
+            console.error('Error updating settlement:', error)
+            alert('Failed to update settlement: ' + error.message)
         } finally {
             setLoading(false)
         }
@@ -183,6 +332,69 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
         }
     }
 
+    // Check if UPI is available (only for INR)
+    const isUpiAvailable = group.currency === 'INR'
+
+    // UTR Prompt Screen
+    if (showUtrPrompt) {
+        return (
+            <div className="modal-overlay">
+                <div className="modal-card">
+                    <div className="modal-header">
+                        <h2>Enter UTR/Reference</h2>
+                        <button onClick={handleCancelUtr} className="close-btn">
+                            <X size={24} />
+                        </button>
+                    </div>
+
+                    <div className="modal-form" style={{ textAlign: 'center' }}>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                            Enter the transaction reference number from your payment app to confirm this settlement.
+                        </p>
+
+                        <input
+                            type="text"
+                            placeholder="e.g. 402345678912"
+                            value={utrReference}
+                            onChange={(e) => setUtrReference(e.target.value)}
+                            className="amount-input"
+                            style={{ textAlign: 'center', fontSize: '1.1rem' }}
+                            autoFocus
+                        />
+
+                        <button
+                            onClick={handleSaveUtr}
+                            disabled={loading}
+                            className="create-btn settle-btn"
+                            style={{ marginTop: '1.5rem' }}
+                        >
+                            {loading ? <Loader2 className="spin" /> : 'Save & Complete'}
+                        </button>
+
+                        <button
+                            onClick={handleCancelUtr}
+                            disabled={loading}
+                            className="cancel-btn"
+                            style={{
+                                marginTop: '1rem',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                color: '#ef4444',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                padding: '10px 16px',
+                                borderRadius: '10px',
+                                width: '100%'
+                            }}
+                        >
+                            Cancel Settlement
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="modal-overlay">
             <div className="modal-card">
@@ -193,7 +405,7 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
                     </button>
                 </div>
 
-                <form onSubmit={handleSettle} className="modal-form">
+                <form onSubmit={expenseToEdit ? handleUpdate : (e) => e.preventDefault()} className="modal-form">
 
                     <div className="settle-flow">
                         <div className="flow-item">
@@ -257,23 +469,51 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
                         />
                     </div>
 
-                    <button type="submit" disabled={loading} className="create-btn settle-btn">
-                        {loading ? <Loader2 className="spin" /> : (expenseToEdit ? 'Update Settlement' : 'Record Settlement')}
-                    </button>
+                    {/* Edit Mode: Single Update Button */}
+                    {expenseToEdit ? (
+                        <>
+                            <button type="submit" disabled={loading} className="create-btn settle-btn">
+                                {loading ? <Loader2 className="spin" /> : 'Update Settlement'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDelete}
+                                disabled={loading}
+                                className="delete-expense-btn"
+                                style={{ marginTop: '1rem', width: '100%', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600' }}
+                            >
+                                <Trash2 size={18} /> Delete Settlement
+                            </button>
+                        </>
+                    ) : (
+                        /* Create Mode: Dual Settlement Buttons */
+                        <div className="settlement-options">
+                            <button
+                                type="button"
+                                onClick={handleManualSettle}
+                                disabled={loading || !amount || !receiver}
+                                className="settle-option-btn manual"
+                            >
+                                <HandCoins size={20} />
+                                <span>Settle Manually</span>
+                            </button>
 
-                    {expenseToEdit && (
-                        <button
-                            type="button"
-                            onClick={handleDelete}
-                            disabled={loading}
-                            className="delete-expense-btn"
-                            style={{ marginTop: '1rem', width: '100%', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600' }}
-                        >
-                            <Trash2 size={18} /> Delete Settlement
-                        </button>
+                            {isUpiAvailable && (
+                                <button
+                                    type="button"
+                                    onClick={handleUpiSettle}
+                                    disabled={loading || !amount || !receiver}
+                                    className="settle-option-btn upi"
+                                >
+                                    <Smartphone size={20} />
+                                    <span>Pay via UPI</span>
+                                </button>
+                            )}
+                        </div>
                     )}
                 </form>
             </div>
         </div>
     )
 }
+
