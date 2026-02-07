@@ -4,15 +4,39 @@ import { X, Loader2, ArrowRight, Trash2, Smartphone, HandCoins } from 'lucide-re
 import './SettleUpModal.css'
 
 // export default function SettleUpModal({ group, currentUser, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
-export default function SettleUpModal({ group, currentUser, members, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
+// export default function SettleUpModal({ group, currentUser, members, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
+// export default function SettleUpModal({ group, currentUser, members, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
+// export default function SettleUpModal({ group, currentUser, members, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
+export default function SettleUpModal({ group, currentUser, members, debts: propDebts, onClose, onPaymentRecorded, expenseToEdit = null, onDelete, initialData = null }) {
     const [loading, setLoading] = useState(false)
     // const [members, setMembers] = useState([]) // removing local state
-    const [debts, setDebts] = useState({}) // { [payerId]: { [receiverId]: amount } }
+    const [localDebts, setLocalDebts] = useState({}) // { [payerId]: { [receiverId]: amount } }
 
-    // Form State
-    const [payer, setPayer] = useState(currentUser.id)
-    const [receiver, setReceiver] = useState('')
-    const [amount, setAmount] = useState('')
+    // Use prop debts if available, otherwise local debts
+    const debts = propDebts || localDebts
+
+    // Check if selections should be locked (from debt card click)
+    const isLocked = initialData?.locked || false
+
+    // Form State - initialize directly from initialData if present
+    const [payer, setPayer] = useState(() => {
+        if (expenseToEdit) return expenseToEdit.paid_by
+        if (initialData?.payer) return initialData.payer
+        return currentUser.id
+    })
+    const [receiver, setReceiver] = useState(() => {
+        if (initialData?.receiver) return initialData.receiver
+        return ''
+    })
+    const [amount, setAmount] = useState(() => {
+        if (expenseToEdit) return parseFloat(expenseToEdit.amount).toFixed(2)
+        if (initialData?.amount) return parseFloat(initialData.amount).toFixed(2)
+        return ''
+    })
+    const [description, setDescription] = useState(() => {
+        if (expenseToEdit) return expenseToEdit.description || ''
+        return ''
+    })
 
     // Settlement Flow State
     const [showUtrPrompt, setShowUtrPrompt] = useState(false)
@@ -21,8 +45,10 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
 
     useEffect(() => {
         // fetchMembers() // removing call
-        fetchDebts()
-    }, [])
+        if (!propDebts) {
+            fetchDebts()
+        }
+    }, [propDebts])
 
     // ...
 
@@ -63,18 +89,31 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
             if (!netBalances[payerId][debtorId]) netBalances[payerId][debtorId] = 0
             netBalances[payerId][debtorId] -= amt
         })
-        setDebts(netBalances)
+        setLocalDebts(netBalances)
     }
 
-    // Load Expense Data for Editing
+    // Load Expense Data for Editing or Initial Data
     useEffect(() => {
         if (expenseToEdit) {
             setPayer(expenseToEdit.paid_by)
-            setAmount(expenseToEdit.amount) // Ensure amount is set
+            setAmount(parseFloat(expenseToEdit.amount).toFixed(2)) // Ensure amount is set
+            setDescription(expenseToEdit.description || '')
             // Fetch the receiver (who owes 100% of this split)
             fetchReceiver(expenseToEdit.id)
+        } else if (initialData) {
+            // Explicitly set each field with fallbacks, prioritizing initialData
+            const initPayer = initialData.payer || currentUser.id
+            const initReceiver = initialData.receiver || ''
+            const initAmount = initialData.amount ? parseFloat(initialData.amount).toFixed(2) : ''
+
+            console.log('Initializing SettleUpModal:', { initPayer, initReceiver, initAmount, initialData })
+
+            setPayer(initPayer)
+            setReceiver(initReceiver)
+            setAmount(initAmount)
+            setDescription('')
         }
-    }, [expenseToEdit])
+    }, [expenseToEdit, initialData, currentUser.id])
 
     const fetchReceiver = async (expenseId) => {
         const { data } = await supabase
@@ -120,7 +159,7 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
     // Create Settlement Record (shared logic)
     const createSettlementRecord = async (method) => {
         const receiverName = members.find(m => m.id === receiver)?.name || 'Someone'
-        const description = `Settlement to ${receiverName}`
+        const finalDescription = description.trim() || `Settlement to ${receiverName}`
 
         const { data: expense, error: expenseError } = await supabase
             .from('expenses')
@@ -128,7 +167,7 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
                 group_id: group.id,
                 paid_by: payer,
                 amount: parseFloat(amount),
-                description: description,
+                description: finalDescription,
                 category: 'settlement',
                 date: new Date().toISOString()
             })
@@ -276,10 +315,41 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
         }
     }
 
-    // Cancel UTR - Close modal, settlement stays as pending_utr (user can add UTR later)
-    const handleCancelUtr = () => {
-        onPaymentRecorded()
-        onClose()
+    // Cancel UTR - Delete the pending settlement
+    const handleCancelUtr = async () => {
+        if (!pendingExpenseId) {
+            onClose()
+            return
+        }
+
+        setLoading(true)
+        try {
+            // Delete the settlement details first
+            await supabase
+                .from('settlement_details')
+                .delete()
+                .eq('expense_id', pendingExpenseId)
+
+            // Delete the expense splits
+            await supabase
+                .from('expense_splits')
+                .delete()
+                .eq('expense_id', pendingExpenseId)
+
+            // Delete the expense
+            await supabase
+                .from('expenses')
+                .delete()
+                .eq('id', pendingExpenseId)
+
+            onPaymentRecorded()
+            onClose()
+        } catch (error) {
+            console.error('Error canceling settlement:', error)
+            alert('Failed to cancel: ' + error.message)
+        } finally {
+            setLoading(false)
+        }
     }
 
     // Edit Mode: Update existing settlement
@@ -290,18 +360,19 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
         setLoading(true)
         try {
             const receiverName = members.find(m => m.id === receiver)?.name || 'Someone'
-            const description = `Settlement to ${receiverName}`
+            const finalDescription = description.trim() || `Settlement to ${receiverName}`
 
-            const { error: updateError } = await supabase
+            const { error: expenseError } = await supabase
                 .from('expenses')
                 .update({
                     paid_by: payer,
                     amount: parseFloat(amount),
-                    description: description
+                    description: finalDescription,
+                    date: new Date().toISOString()
                 })
                 .eq('id', expenseToEdit.id)
 
-            if (updateError) throw updateError
+            if (expenseError) throw expenseError
 
             await supabase.from('expense_splits').delete().eq('expense_id', expenseToEdit.id)
 
@@ -414,8 +485,8 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
                                 value={payer}
                                 onChange={(e) => handlePayerChange(e.target.value)}
                                 className="user-select"
-                                disabled={!!expenseToEdit}
-                                style={{ opacity: expenseToEdit ? 0.7 : 1, cursor: expenseToEdit ? 'not-allowed' : 'pointer' }}
+                                disabled={!!expenseToEdit || isLocked}
+                                style={{ opacity: (expenseToEdit || isLocked) ? 0.7 : 1, cursor: (expenseToEdit || isLocked) ? 'not-allowed' : 'pointer' }}
                             >
                                 {members.map(member => (
                                     <option key={member.id} value={member.id}>
@@ -436,8 +507,8 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
                                     value={receiver}
                                     onChange={(e) => setReceiver(e.target.value)}
                                     className="user-select"
-                                    disabled={!!expenseToEdit}
-                                    style={{ opacity: expenseToEdit ? 0.7 : 1, cursor: expenseToEdit ? 'not-allowed' : 'pointer' }}
+                                    disabled={!!expenseToEdit || isLocked}
+                                    style={{ opacity: (expenseToEdit || isLocked) ? 0.7 : 1, cursor: (expenseToEdit || isLocked) ? 'not-allowed' : 'pointer' }}
                                 >
                                     {availableReceivers.map(member => (
                                         <option key={member.id} value={member.id}>
@@ -453,20 +524,44 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
                         </div>
                     </div>
 
-                    <div className="form-group amount-group">
-                        <label>Amount ({group.currency})</label>
-                        <input
-                            type="number"
-                            inputMode="decimal"
-                            placeholder="0.00"
-                            step="0.01"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
-                            required
-                            className="amount-input settle-input"
-                            autoFocus
-                        />
+                    <div className="input-section">
+                        <div className="amount-group">
+                            <label>Amount</label>
+                            <div className="currency-input">
+                                <span className="currency-symbol">{group.currency === 'USD' ? '$' : group.currency === 'EUR' ? '€' : group.currency === 'INR' ? '₹' : group.currency}</span>
+                                <input
+                                    type="number"
+                                    placeholder="0.00"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    min="0"
+                                    step="0.01"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-group" style={{ marginTop: '1rem' }}>
+                            <label>Note (Optional)</label>
+                            <input
+                                type="text"
+                                placeholder="Add a short note..."
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                maxLength={100}
+                                className="description-input"
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '8px',
+                                    background: 'var(--bg-input)',
+                                    color: 'var(--text-primary)'
+                                }}
+                            />
+                            <div style={{ textAlign: 'right', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                {description.length}/100
+                            </div>
+                        </div>
                     </div>
 
                     {/* Edit Mode: Single Update Button */}
@@ -512,8 +607,8 @@ export default function SettleUpModal({ group, currentUser, members, onClose, on
                         </div>
                     )}
                 </form>
-            </div>
-        </div>
+            </div >
+        </div >
     )
 }
 

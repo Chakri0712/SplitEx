@@ -1,0 +1,8 @@
+Here is the simple rule of thumb:
+
+restore_schema.sql
+: Run this 99% of the time. It resets your app data (groups, expenses) so you can test fresh, but keeps you logged in.
+master_schema.sql
+: Keep this file, but don't run it. It is the "blueprint" or documentation of your database structure. If we add new features later, I will update this file so we have a permanent record of what the DB looks like.
+reset_db.sql
+: Only run this if you want to NUKE everything, including deleting your user account and starting over as a brand new user.

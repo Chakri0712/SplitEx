@@ -2,7 +2,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
+    /* Reduced from 2rem */
     background: var(--bg-input);
     padding: 1.5rem;
     border-radius: var(--radius-lg);
@@ -15,6 +16,8 @@
     flex-direction: column;
     gap: 8px;
 }
+
+
 
 .flow-item label {
     font-size: 0.75rem;
@@ -35,40 +38,149 @@
     color: var(--text-primary);
     text-align: center;
     outline: none;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
+/* Standardized Focus State */
 .user-select:focus {
-    border-color: var(--success);
+    border-color: #EAB308 !important;
+    /* Gold */
+    outline: none !important;
+    box-shadow: 0 0 0 2px rgba(234, 180, 8, 0.2) !important;
+    /* Gold glow */
 }
 
 .flow-arrow {
-    color: var(--text-muted);
+    color: var(--primary);
+    /* Gold Color restored */
     padding: 0 16px;
     display: flex;
     align-items: center;
     justify-content: center;
+    opacity: 0.8;
+    margin-top: 16px;
+    /* Visual fix: Align with inputs not labels */
 }
 
-.settle-input {
-    color: var(--primary) !important;
-    border-color: var(--primary) !important;
+/* Input Section (Amount + Note) */
+.input-section {
+    background: var(--bg-card);
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+    margin-bottom: 12px;
+    /* Reduced from 20px */
+}
+
+.amount-group label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    /* Reduced from 8px */
+    text-transform: uppercase;
+    font-weight: 600;
+    text-align: center;
+}
+
+.currency-input {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-color);
+    /* Thinner line */
+    padding-bottom: 2px;
+    transition: border-color 0.2s;
+    margin-bottom: 12px;
+    /* Added spacing from note */
+}
+
+.currency-input:focus-within {
+    border-color: var(--primary);
+    /* Gold underline */
+}
+
+.currency-symbol {
+    font-size: 1.25rem;
+    /* Reduced from 1.5rem */
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.currency-input input {
+    background: none;
+    border: none;
+    font-size: 1.75rem;
+    /* Reduced from 2rem */
     font-weight: 700;
+    color: var(--text-primary);
+    width: 120px;
+    text-align: center;
+    outline: none;
 }
 
-.settle-input:focus {
-    box-shadow: 0 0 0 3px var(--primary-glow) !important;
+.currency-input input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.3;
 }
 
-.settle-btn {
-    background: var(--primary) !important;
-    color: #0f172a !important;
-    box-shadow: 0 0 15px var(--primary-glow);
+.description-input {
+    transition: border-color 0.2s;
 }
 
-.settle-btn:hover {
-    background: var(--primary-hover) !important;
-    box-shadow: 0 0 20px var(--primary-glow);
+.description-input:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.1);
+}
+
+/* Modal Header Updates */
+.modal-header h2 {
+    color: var(--text-primary);
+}
+
+/* Settlement Buttons */
+.settlement-options {
+    display: flex;
+    gap: 12px;
+    margin-top: 1rem;
+}
+
+.settle-option-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 12px;
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(250, 204, 21, 0.3);
+    /* Gold Edges */
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.settle-option-btn:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: rgba(234, 179, 8, 0.15);
+    /* Stronger hover background */
+    color: var(--primary);
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.settle-option-btn svg {
+    color: var(--text-secondary);
+    transition: color 0.2s;
+}
+
+.settle-option-btn:hover svg {
+    color: var(--primary);
 }
 
 .no-debts-msg {
@@ -80,49 +192,4 @@
     font-size: 0.85rem;
     text-align: center;
     width: 100%;
-}
-
-/* Dual Settlement Buttons */
-.settlement-options {
-    display: flex;
-    gap: 12px;
-    margin-top: 0.5rem;
-}
-
-.settle-option-btn {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 16px 12px;
-    border-radius: var(--radius-lg);
-    border: 2px solid var(--border-color);
-    background: var(--bg-input);
-    color: var(--text-primary);
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.settle-option-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.settle-option-btn.manual:not(:disabled):hover {
-    border-color: var(--primary);
-    background: rgba(234, 179, 8, 0.1);
-    color: var(--primary);
-}
-
-.settle-option-btn.upi:not(:disabled):hover {
-    border-color: var(--primary);
-    background: rgba(234, 179, 8, 0.1);
-    color: var(--primary);
-}
-
-.settle-option-btn.upi {
-    border-color: var(--border-color);
 }

@@ -99,16 +99,32 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
 
             if (splitsError) throw splitsError
 
+            // Fetch unconfirmed settlements
+            let excludedExpenseIds = new Set()
+            if (expenseIds && expenseIds.length > 0) {
+                const { data: unconfirmedSettlements } = await supabase
+                    .from('settlement_details')
+                    .select('expense_id')
+                    .in('expense_id', expenseIds)
+                    .neq('settlement_status', 'confirmed')
+
+                unconfirmedSettlements?.forEach(s => excludedExpenseIds.add(s.expense_id))
+            }
+
+            // Filter out unconfirmed settlements
+            const activeExpenses = expenses?.filter(e => !excludedExpenseIds.has(e.id)) || []
+            const activeSplits = splits?.filter(s => !excludedExpenseIds.has(s.expense_id)) || []
+
             // Calculate balance: (what they paid) - (what they owe)
             let balance = 0
 
-            expenses?.forEach(exp => {
+            activeExpenses.forEach(exp => {
                 if (exp.paid_by === currentUser.id) {
                     balance += parseFloat(exp.amount)
                 }
             })
 
-            splits?.forEach(split => {
+            activeSplits.forEach(split => {
                 if (split.user_id === currentUser.id) {
                     balance -= parseFloat(split.owe_amount)
                 }

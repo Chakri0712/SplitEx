@@ -1,14 +1,31 @@
+-- ============================================================================
+-- RESTORE SCHEMA SCRIPT
+-- This script will:
+-- 1. Drop all application tables (keeping auth.users intact)
+-- 2. Re-create all tables, functions, and policies
+-- 3. Restore user profiles from existing auth.users
+-- ============================================================================
+
+-- 1. CLEANUP (Drop tables in correct dependency order)
+DROP TABLE IF EXISTS settlement_details CASCADE;
+DROP TABLE IF EXISTS expense_splits CASCADE;
+DROP TABLE IF EXISTS expenses CASCADE;
+DROP TABLE IF EXISTS group_members CASCADE;
+DROP TABLE IF EXISTS groups CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+
+-- Drop Functions
+DROP FUNCTION IF EXISTS is_member_of CASCADE;
+DROP FUNCTION IF EXISTS handle_new_user CASCADE;
+DROP FUNCTION IF EXISTS join_group_by_code CASCADE;
 
 -- ============================================================================
--- My Split App - Master Database Schema
--- Run this if you need to set up the project from scratch.
--- (If you already ran previous scripts, you don't need to run this).
+-- 2. REBUILD SCHEMA (From master_schema.sql)
 -- ============================================================================
 
--- 1. Enable UUID extension
+-- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
--- 2. CREATE TABLES
 -- Profiles (Managed by Supabase Auth)
 create table if not exists profiles (
   id uuid references auth.users on delete cascade not null primary key,
@@ -56,15 +73,30 @@ create table if not exists expense_splits (
   owe_amount decimal(10,2) not null
 );
 
+-- Settlement Details
+create table if not exists settlement_details (
+  id uuid primary key default uuid_generate_v4(),
+  expense_id uuid references expenses(id) on delete cascade unique,
+  settlement_method text check (settlement_method in ('manual', 'upi')) not null,
+  settlement_status text check (settlement_status in ('pending_utr', 'pending_confirmation', 'confirmed', 'disputed', 'cancelled')) not null,
+  utr_reference text,
+  cancellation_reason text,
+  initiated_by uuid references profiles(id) not null,
+  initiated_at timestamp with time zone default now(),
+  confirmed_by uuid references profiles(id),
+  confirmed_at timestamp with time zone,
+  created_at timestamp with time zone default now()
+);
+
 -- 3. ENABLE RLS
 alter table profiles enable row level security;
 alter table groups enable row level security;
 alter table group_members enable row level security;
 alter table expenses enable row level security;
 alter table expense_splits enable row level security;
+alter table settlement_details enable row level security;
 
--- 4. SECURITY HELPERS
--- Function to reliably check membership without recursion
+-- 4. SECURITY FUNCTIONS
 create or replace function is_member_of(_group_id uuid)
 returns boolean language plpgsql security definer
 as $$
@@ -73,46 +105,36 @@ begin
 end;
 $$;
 
--- 5. POLICIES (Based on fix_rls_final.sql)
-
--- Reset existing policies to ensure clean state
-drop policy if exists "View joined groups" on groups;
-drop policy if exists "Create groups" on groups;
-drop policy if exists "Read groups" on groups;
-drop policy if exists "Insert groups" on groups;
-
-drop policy if exists "View members" on group_members;
-drop policy if exists "Join group" on group_members;
-drop policy if exists "Read members" on group_members;
-drop policy if exists "Insert members" on group_members;
-
-drop policy if exists "View expenses" on expenses;
-drop policy if exists "Add expense" on expenses;
-drop policy if exists "View splits" on expense_splits;
-drop policy if exists "Add splits" on expense_splits;
-drop policy if exists "Public profiles" on profiles;
-drop policy if exists "Users can update own profile" on profiles;
+-- 5. POLICIES
 
 -- Profiles
 create policy "Public profiles" on profiles for select using (true);
 create policy "Users can update own profile" on profiles for update using (auth.uid() = id);
 
 -- Groups
-create policy "Read groups" on groups for select using (
+create policy "View joined groups" on groups for select using (
   is_member_of(id) OR created_by = auth.uid()
 );
-create policy "Insert groups" on groups for insert with check (
+create policy "Create groups" on groups for insert with check (
   created_by = auth.uid()
 );
 create policy "Update groups" on groups for update using (
   is_member_of(id)
 );
+create policy "Delete groups" on groups for delete using (
+  created_by = auth.uid()
+);
+create policy "Allow last member to delete group" on groups for delete using (
+  (select count(*) from group_members where group_id = id) = 1
+  and
+  (auth.uid() in (select user_id from group_members where group_id = id))
+);
 
 -- Members
-create policy "Read members" on group_members for select using (
+create policy "View members" on group_members for select using (
   is_member_of(group_id) OR user_id = auth.uid()
 );
-create policy "Insert members" on group_members for insert with check (
+create policy "Join group" on group_members for insert with check (
   user_id = auth.uid()
 );
 create policy "Delete members" on group_members for delete using (
@@ -147,46 +169,17 @@ create policy "Delete splits" on expense_splits for delete using (
   exists (select 1 from expenses where id = expense_splits.expense_id and is_member_of(group_id))
 );
 
--- Groups: Allow deletion
-create policy "Delete groups" on groups for delete using (
-  created_by = auth.uid()
-);
-
-create policy "Allow last member to delete group" on groups for delete using (
-  (select count(*) from group_members where group_id = id) = 1
-  and
-  (auth.uid() in (select user_id from group_members where group_id = id))
-);
-
--- Settlement Details Table (for tracking settlement confirmations)
-create table settlement_details (
-  id uuid primary key default uuid_generate_v4(),
-  expense_id uuid references expenses(id) on delete cascade unique,
-  settlement_method text check (settlement_method in ('manual', 'upi')) not null,
-  settlement_status text check (settlement_status in ('pending_utr', 'pending_confirmation', 'confirmed', 'disputed', 'cancelled')) not null,
-  utr_reference text,
-  cancellation_reason text,
-  initiated_by uuid references profiles(id) not null,
-  initiated_at timestamp with time zone default now(),
-  confirmed_by uuid references profiles(id),
-  confirmed_at timestamp with time zone,
-  created_at timestamp with time zone default now()
-);
-
-alter table settlement_details enable row level security;
-
-create policy "View settlement details for group members" on settlement_details for select using (
+-- Settlement Details
+create policy "View settlement details" on settlement_details for select using (
   expense_id in (
     select e.id from expenses e
     join group_members gm on e.group_id = gm.group_id
     where gm.user_id = auth.uid()
   )
 );
-
 create policy "Create settlement details" on settlement_details for insert with check (
   initiated_by = auth.uid()
 );
-
 create policy "Update settlement details" on settlement_details for update using (
   initiated_by = auth.uid() or
   expense_id in (
@@ -207,16 +200,14 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- Drop trigger if exists to avoid error
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- 7. BACKEND FUNCTIONS
--- Join Group safely by Code
+-- 7. FUNCTIONS
 create or replace function join_group_by_code(invite_code_input text)
-returns json
+returns json hiding password
 language plpgsql
 security definer
 as $$
@@ -225,7 +216,6 @@ declare
   target_group_name text;
   already_member boolean;
 begin
-  -- 1. Find the group
   select id, name into target_group_id, target_group_name
   from groups
   where invite_code = invite_code_input;
@@ -234,7 +224,6 @@ begin
     raise exception 'Invalid invite code';
   end if;
 
-  -- 2. Check if already a member
   select exists (
     select 1 from group_members
     where group_id = target_group_id
@@ -242,14 +231,28 @@ begin
   ) into already_member;
 
   if already_member then
-    -- Return success anyway, just don't insert
     return json_build_object('id', target_group_id, 'name', target_group_name, 'already_joined', true);
   end if;
 
-  -- 3. Insert membership
   insert into group_members (group_id, user_id)
   values (target_group_id, auth.uid());
 
   return json_build_object('id', target_group_id, 'name', target_group_name, 'already_joined', false);
 end;
 $$;
+
+
+-- ============================================================================
+-- 3. RESTORE PROFILES (Sync from auth.users)
+-- ============================================================================
+INSERT INTO profiles (id, email, full_name, avatar_url)
+SELECT 
+    id, 
+    email, 
+    raw_user_meta_data->>'full_name',
+    raw_user_meta_data->>'avatar_url'
+FROM auth.users
+ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = EXCLUDED.full_name,
+    avatar_url = EXCLUDED.avatar_url;

@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
-import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info } from 'lucide-react'
+import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info, HandCoins, ArrowRight } from 'lucide-react'
 import AddExpenseModal from './AddExpenseModal'
 import SettleUpModal from './SettleUpModal'
 import GroupSettingsModal from './GroupSettingsModal'
@@ -18,8 +18,11 @@ export default function GroupDetails({ session, group, onBack }) {
     const [balance, setBalance] = useState(0)
     const [currentGroup, setCurrentGroup] = useState(group)
     const [activeTab, setActiveTab] = useState('expenses')
+    const [expenseFilter, setExpenseFilter] = useState('expenses')
     const [members, setMembers] = useState([])
     const [memberSpending, setMemberSpending] = useState([])
+    const [debts, setDebts] = useState({}) // { [payerId]: { [receiverId]: amount } }
+    const [initialSettlementData, setInitialSettlementData] = useState(null)
     const [selectedSettlement, setSelectedSettlement] = useState(null)
 
     useEffect(() => {
@@ -38,7 +41,7 @@ export default function GroupDetails({ session, group, onBack }) {
                 .order('date', { ascending: false })
 
             if (expensesError) throw expensesError
-            setExpenses(expensesData || [])
+            // setExpenses(expensesData || []) // Moved to after enhancing with settlement status
 
             // Fetch current members
             const { data: membersData, error: membersError } = await supabase
@@ -69,6 +72,37 @@ export default function GroupDetails({ session, group, onBack }) {
 
             if (splitsErr) throw splitsErr
 
+            // Fetch ALL settlement details for these expenses to track status
+            let settlementStatusMap = {}
+            let excludedExpenseIds = new Set()
+
+            if (expenseIds && expenseIds.length > 0) {
+                const { data: allSettlements } = await supabase
+                    .from('settlement_details')
+                    .select('expense_id, settlement_status')
+                    .in('expense_id', expenseIds)
+
+                allSettlements?.forEach(s => {
+                    settlementStatusMap[s.expense_id] = s.settlement_status
+                    // Exclude from calculations if not confirmed
+                    if (s.settlement_status !== 'confirmed') {
+                        excludedExpenseIds.add(s.expense_id)
+                    }
+                })
+            }
+
+            // Enhanced expenses with settlement status
+            const enhancedExpenses = (expensesData || []).map(e => ({
+                ...e,
+                settlement_status: settlementStatusMap[e.id]
+            }))
+
+            setExpenses(enhancedExpenses)
+
+            // Filter out unconfirmed settlements for calculations
+            const activeExpenses = expensesData?.filter(e => !excludedExpenseIds.has(e.id)) || []
+            const activeSplits = splits?.filter(s => !excludedExpenseIds.has(s.expense_id)) || []
+
             // COLLECT ALL INVOLVED USERS (Current Members + Historical Payers + Split Participants)
             const allInvolvedUserIds = new Set()
 
@@ -76,10 +110,10 @@ export default function GroupDetails({ session, group, onBack }) {
             membersData?.forEach(m => allInvolvedUserIds.add(m.user_id))
 
             // Add expense payers
-            expensesData?.forEach(e => allInvolvedUserIds.add(e.paid_by))
+            activeExpenses.forEach(e => allInvolvedUserIds.add(e.paid_by))
 
             // Add split people
-            splits?.forEach(s => allInvolvedUserIds.add(s.user_id))
+            activeSplits.forEach(s => allInvolvedUserIds.add(s.user_id))
 
             const uniqueUserIds = Array.from(allInvolvedUserIds)
 
@@ -126,15 +160,20 @@ export default function GroupDetails({ session, group, onBack }) {
             const spendingMap = {}
             let totalExpenses = 0
 
-            expensesData?.forEach(exp => {
-                totalExpenses += parseFloat(exp.amount)
+            activeExpenses.forEach(exp => {
+                if (exp.category !== 'settlement') {
+                    totalExpenses += parseFloat(exp.amount)
+                }
             })
 
-            splits?.forEach(split => {
-                if (!spendingMap[split.user_id]) {
-                    spendingMap[split.user_id] = 0
+            activeSplits.forEach(split => {
+                const expense = activeExpenses.find(e => e.id === split.expense_id)
+                if (expense && expense.category !== 'settlement') {
+                    if (!spendingMap[split.user_id]) {
+                        spendingMap[split.user_id] = 0
+                    }
+                    spendingMap[split.user_id] += parseFloat(split.owe_amount)
                 }
-                spendingMap[split.user_id] += parseFloat(split.owe_amount)
             })
 
             const spendingArray = historicalMembers.map(member => ({
@@ -146,17 +185,48 @@ export default function GroupDetails({ session, group, onBack }) {
             setMemberSpending(spendingArray)
 
             let myNet = 0
-            expensesData.forEach(exp => {
+
+            // Debt Calculation Logic (Net Balances)
+            const netBalances = {}
+
+            activeExpenses.forEach(exp => {
+                const payerId = exp.paid_by
+
                 if (exp.paid_by === session.user.id) {
                     myNet += parseFloat(exp.amount)
                 }
+
+                // Initialize balance map
+                if (!netBalances[payerId]) netBalances[payerId] = {}
             })
-            splits.forEach(split => {
+
+            activeSplits.forEach(split => {
+                const debtorId = split.user_id
+                const expense = activeExpenses.find(e => e.id === split.expense_id)
+                if (!expense) return
+
+                const payerId = expense.paid_by
+                const amt = parseFloat(split.owe_amount)
+
                 if (split.user_id === session.user.id) {
                     myNet -= parseFloat(split.owe_amount)
                 }
+
+                if (payerId === debtorId) return
+
+                // Debtor owes Payer
+                if (!netBalances[debtorId]) netBalances[debtorId] = {}
+                if (!netBalances[debtorId][payerId]) netBalances[debtorId][payerId] = 0
+                netBalances[debtorId][payerId] += amt
+
+                // Symmetry
+                if (!netBalances[payerId]) netBalances[payerId] = {}
+                if (!netBalances[payerId][debtorId]) netBalances[payerId][debtorId] = 0
+                netBalances[payerId][debtorId] -= amt
             })
+
             setBalance(myNet)
+            setDebts(netBalances)
 
         } catch (error) {
             console.error('Error fetching data:', error)
@@ -207,6 +277,12 @@ export default function GroupDetails({ session, group, onBack }) {
     const closeSettleModal = () => {
         setIsSettleModalOpen(false)
         setExpenseToEdit(null)
+        setInitialSettlementData(null)
+    }
+
+    const openSettleModalWithData = (data) => {
+        setInitialSettlementData(data)
+        setIsSettleModalOpen(true)
     }
 
     return (
@@ -228,28 +304,7 @@ export default function GroupDetails({ session, group, onBack }) {
                 </button>
             </header>
 
-            <div className="balances-card">
-                <div className="balance-header">
-                    <h3>Your Balance</h3>
-                    {Math.abs(balance) > 0.01 && (
-                        <button className="settle-up-link" onClick={() => setIsSettleModalOpen(true)}>
-                            Settle Up
-                        </button>
-                    )}
-                </div>
-
-                {balance === 0 ? (
-                    <p className="empty-balance">You are all settled up!</p>
-                ) : (
-                    <div className={`balance-item ${balance > 0 ? 'positive' : 'negative'}`}>
-                        {balance > 0 ? 'You are owed ' : 'You owe '}
-                        <strong>
-                            {currentGroup.currency === 'USD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
-                            {Math.abs(balance).toFixed(2)}
-                        </strong>
-                    </div>
-                )}
-            </div>
+            {/* Balances Card Removed as per request */}
 
             {/* Tab Navigation */}
             <div className="tab-navigation">
@@ -258,7 +313,7 @@ export default function GroupDetails({ session, group, onBack }) {
                     onClick={() => setActiveTab('expenses')}
                 >
                     <Receipt size={18} />
-                    Expenses
+                    Transactions
                 </button>
                 <button
                     className={`tab-btn ${activeTab === 'balances' ? 'active' : ''}`}
@@ -273,74 +328,165 @@ export default function GroupDetails({ session, group, onBack }) {
             {activeTab === 'expenses' && (
                 <div className="expenses-section">
                     <div className="section-header">
-                        <h2>Expenses</h2>
-                        <button
-                            className="add-expense-btn"
-                            onClick={() => setIsExpenseModalOpen(true)}
+                        <select
+                            className="expense-filter-dropdown"
+                            value={expenseFilter}
+                            onChange={(e) => setExpenseFilter(e.target.value)}
                         >
-                            <Plus size={20} /> Add Expense
-                        </button>
+                            <option value="expenses">Expenses</option>
+                            <option value="settlements">Settlements</option>
+                        </select>
+
+                        {expenseFilter === 'expenses' && (
+                            <button
+                                className="add-expense-btn"
+                                onClick={() => setIsExpenseModalOpen(true)}
+                            >
+                                <Plus size={20} /> Add Expense
+                            </button>
+                        )}
                     </div>
 
+                    {/* Show Debts Summary when filtering by Settlements */}
+                    {expenseFilter === 'settlements' && (
+                        <div className="debts-section-preview">
+                            {Object.keys(debts).length === 0 ? (
+                                <div className="empty-debts">
+                                    <p>✨ You are all settled up! No pending debts.</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* 1. Debts involving YOU */}
+                                    {(() => {
+                                        const myDebts = debts[session.user.id] || {}
+                                        const otherUsers = members.filter(m => m.id !== session.user.id)
+                                        let hasDebts = false
+
+                                        const debtCards = otherUsers.map(user => {
+                                            const amountIOwe = myDebts[user.id] || 0
+                                            const amountTheyOwe = (debts[user.id] || {})[session.user.id] || 0
+
+                                            if (amountIOwe > 0.01) {
+                                                hasDebts = true
+                                                return (
+                                                    <div key={user.id} className="debt-card owe" onClick={() => openSettleModalWithData({ receiver: user.id, amount: amountIOwe, locked: true })}>
+                                                        <div className="debt-info">
+                                                            <div className="debt-text">
+                                                                <span>You owe <strong>{user.name}</strong></span>
+                                                            </div>
+                                                        </div>
+                                                        <span className="debt-amount negative">
+                                                            {currentGroup.currency === 'USD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : ''}
+                                                            {amountIOwe.toFixed(2)}
+                                                        </span>
+                                                    </div>
+                                                )
+                                            }
+
+                                            if (amountTheyOwe > 0.01) {
+                                                hasDebts = true
+                                                return (
+                                                    <div key={user.id} className="debt-card owed" onClick={() => openSettleModalWithData({ payer: user.id, receiver: session.user.id, amount: amountTheyOwe, locked: true })}>
+                                                        <div className="debt-info">
+                                                            <div className="debt-text">
+                                                                <span><strong>{user.name}</strong> owes you</span>
+                                                            </div>
+                                                        </div>
+                                                        <span className="debt-amount positive">
+                                                            {currentGroup.currency === 'USD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : ''}
+                                                            {amountTheyOwe.toFixed(2)}
+                                                        </span>
+                                                    </div>
+                                                )
+                                            }
+                                            return null
+                                        })
+
+                                        if (!hasDebts) {
+                                            return (
+                                                <div className="empty-debts">
+                                                    <p>✨ You are all settled up! No pending debts.</p>
+                                                </div>
+                                            )
+                                        }
+
+                                        return debtCards
+                                    })()}
+                                </>
+                            )}
+                        </div>
+                    )}
+
                     {loading ? (
-                        <div className="loading">Loading expenses...</div>
-                    ) : expenses.length === 0 ? (
+                        <div className="loading">Loading...</div>
+                    ) : expenses.filter(e => expenseFilter === 'expenses' ? e.category !== 'settlement' : e.category === 'settlement').length === 0 ? (
                         <div className="empty-state">
-                            <p>No expenses yet.</p>
-                            <p className="sub-text">Tap "+ Add Expense" to get started.</p>
+                            <p>No {expenseFilter} found.</p>
+                            {expenseFilter === 'expenses' && (
+                                <p className="sub-text">Tap "+ Add Expense" to get started.</p>
+                            )}
                         </div>
                     ) : (
                         <div className="expenses-list">
-                            {expenses.map((expense) => (
-                                <div key={expense.id} className={`expense-item ${expense.category === 'settlement' ? 'settlement-item' : ''}`}>
-                                    <div className="expense-date">
-                                        <span className="month">
-                                            {new Date(expense.date).toLocaleDateString('en-US', { month: 'short' })}
-                                        </span>
-                                        <span className="day">
-                                            {new Date(expense.date).getDate()}
-                                        </span>
+                            {expenses
+                                .filter(e => expenseFilter === 'expenses' ? e.category !== 'settlement' : e.category === 'settlement')
+                                .map((expense) => (
+                                    <div key={expense.id} className={`expense-item ${expense.category === 'settlement' ? 'settlement-item' : ''}`}>
+                                        <div className="expense-date">
+                                            <span className="month">
+                                                {new Date(expense.date).toLocaleDateString('en-US', { month: 'short' })}
+                                            </span>
+                                            <span className="day">
+                                                {new Date(expense.date).getDate()}
+                                            </span>
+                                        </div>
+                                        <div className="expense-icon">
+                                            {expense.category === 'settlement' ? <Banknote size={24} /> : <Receipt size={24} />}
+                                        </div>
+                                        <div className="expense-info">
+                                            <h4>
+                                                {expense.description}
+                                                {expense.settlement_status === 'cancelled' && (
+                                                    <span style={{ color: '#ef4444', fontSize: '0.8em', marginLeft: '6px' }}>
+                                                        (Cancelled)
+                                                    </span>
+                                                )}
+                                            </h4>
+                                            <p>
+                                                {expense.paid_by === session.user.id
+                                                    ? 'You'
+                                                    : expense.paid_by_profile?.full_name?.split(' ')[0] || 'Unknown'} paid
+                                            </p>
+                                        </div>
+                                        <div className="expense-amount">
+                                            <span className="amount">
+                                                {currentGroup.currency === 'USD' ? '$' :
+                                                    currentGroup.currency === 'EUR' ? '€' :
+                                                        currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
+                                                {expense.amount}
+                                            </span>
+                                        </div>
+                                        <div className="expense-actions">
+                                            {expense.category === 'settlement' ? (
+                                                <button
+                                                    className="action-btn info"
+                                                    onClick={() => setSelectedSettlement(expense)}
+                                                    title="View Details"
+                                                >
+                                                    <Info size={18} />
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    className="action-btn edit"
+                                                    onClick={() => handleEditExpense(expense)}
+                                                    title="Edit"
+                                                >
+                                                    <Pencil size={18} />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="expense-icon">
-                                        {expense.category === 'settlement' ? <Banknote size={24} /> : <Receipt size={24} />}
-                                    </div>
-                                    <div className="expense-info">
-                                        <h4>{expense.description}</h4>
-                                        <p>
-                                            {expense.paid_by === session.user.id
-                                                ? 'You'
-                                                : expense.paid_by_profile?.full_name?.split(' ')[0] || 'Unknown'} paid
-                                        </p>
-                                    </div>
-                                    <div className="expense-amount">
-                                        <span className="amount">
-                                            {currentGroup.currency === 'USD' ? '$' :
-                                                currentGroup.currency === 'EUR' ? '€' :
-                                                    currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
-                                            {expense.amount}
-                                        </span>
-                                    </div>
-                                    <div className="expense-actions">
-                                        {expense.category === 'settlement' ? (
-                                            <button
-                                                className="action-btn info"
-                                                onClick={() => setSelectedSettlement(expense)}
-                                                title="View Details"
-                                            >
-                                                <Info size={18} />
-                                            </button>
-                                        ) : (
-                                            <button
-                                                className="action-btn edit"
-                                                onClick={() => handleEditExpense(expense)}
-                                                title="Edit"
-                                            >
-                                                <Pencil size={18} />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
+                                ))}
                         </div>
                     )}
                 </div>
@@ -360,7 +506,9 @@ export default function GroupDetails({ session, group, onBack }) {
                                     {currentGroup.currency === 'USD' ? '$' :
                                         currentGroup.currency === 'EUR' ? '€' :
                                             currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
-                                    {expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0).toFixed(2)}
+                                    {expenses
+                                        .filter(exp => exp.category !== 'settlement')
+                                        .reduce((sum, exp) => sum + parseFloat(exp.amount), 0).toFixed(2)}
                                 </div>
                             </div>
 
@@ -409,12 +557,15 @@ export default function GroupDetails({ session, group, onBack }) {
                 </div>
             )}
 
+
+
             {isExpenseModalOpen && (
                 <AddExpenseModal
+                    isOpen={isExpenseModalOpen}
+                    onClose={closeExpenseModal}
                     group={currentGroup}
                     currentUser={session.user}
                     members={members}
-                    onClose={closeExpenseModal}
                     onExpenseAdded={handleDataChanged}
                     expenseToEdit={expenseToEdit}
                     onDelete={handleDeleteExpense}
@@ -423,13 +574,15 @@ export default function GroupDetails({ session, group, onBack }) {
 
             {isSettleModalOpen && (
                 <SettleUpModal
+                    key={initialSettlementData ? `${initialSettlementData.receiver}-${initialSettlementData.amount}` : 'settle-default'}
                     group={currentGroup}
                     currentUser={session.user}
                     members={members}
+                    debts={debts}
                     onClose={closeSettleModal}
                     onPaymentRecorded={handleDataChanged}
                     expenseToEdit={expenseToEdit}
-                    onDelete={handleDeleteExpense}
+                    initialData={initialSettlementData}
                 />
             )}
 

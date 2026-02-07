@@ -291,43 +291,169 @@
     }
 }
 
-/* Tab Navigation */
+/* Active Tab Styles update to support 2 items (Transactions, Balances) */
 .tab-navigation {
-    display: flex;
-    gap: 0.5rem;
-    margin: 1.5rem 0;
-    padding: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+    margin-bottom: 20px;
     background: var(--bg-card);
-    border-radius: var(--radius-lg);
+    padding: 4px;
+    border-radius: 12px;
     border: 1px solid var(--border-color);
 }
 
 .tab-btn {
-    flex: 1;
-    background: transparent;
+    background: none;
     border: none;
-    padding: 0.875rem 1.5rem;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-muted);
+    padding: 10px 4px;
+    /* Reduced side padding for mobile */
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    /* Slightly smaller font for mobile fit */
+    font-weight: 500;
     cursor: pointer;
-    border-radius: var(--radius-md);
-    transition: all 0.3s ease;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 6px;
+    /* Reduced gap */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tab-btn svg {
+    min-width: 16px;
+    /* Ensure icon doesn't shrink to nothing */
 }
 
 .tab-btn:hover {
     color: var(--text-primary);
-    background: var(--bg-secondary);
+    background: var(--bg-input);
 }
 
 .tab-btn.active {
+    background: var(--bg-input);
     color: var(--primary);
-    background: linear-gradient(135deg, rgba(218, 165, 32, 0.1), rgba(218, 165, 32, 0.05));
-    box-shadow: 0 0 15px rgba(218, 165, 32, 0.2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Settlements Tab Styles */
+.debts-section {
+    padding-bottom: 80px;
+    animation: fadeIn 0.3s ease;
+}
+
+.debts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.debt-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.debt-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border-color: var(--primary-alpha);
+}
+
+.debt-card.other-debt {
+    opacity: 0.8;
+    background: var(--bg-input);
+    border-left: 4px solid var(--text-muted);
+}
+
+.debt-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Removed debt-avatars and debt-arrow classes */
+
+.debt-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.debt-text span {
+    font-size: 0.95rem;
+    /* Slightly larger for readability */
+    color: var(--text-primary);
+}
+
+.debt-amount {
+    font-weight: 700;
+    font-size: 1.1rem !important;
+    /* Emphasize amount */
+}
+
+.debt-amount.red {
+    color: #ef4444;
+}
+
+.debt-amount.green {
+    color: #22c55e;
+}
+
+.settle-link-btn {
+    background: rgba(234, 179, 8, 0.1);
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.settle-link-btn:hover {
+    background: var(--primary);
+    color: #111827;
+    transform: scale(1.05);
+}
+
+/* Avatar Helpers */
+.avatar.small {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.avatar.small img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Empty State adjustment */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px dashed var(--border-color);
+    margin-top: 20px;
 }
 
 /* Balances View */
@@ -418,6 +544,48 @@
     padding: 1.5rem;
 }
 
+/* Update Section Header */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+/* New Settle Up Button */
+.settle-up-btn {
+    background: var(--primary);
+    color: #111827;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(250, 204, 21, 0.2);
+}
+
+.settle-up-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
+}
+
+.settle-up-btn:active {
+    transform: translateY(0);
+}
+
+/* Hide old individual button styles */
+.settle-link-btn {
+    display: none;
+}
+
 .member-spending-list h3 {
     margin: 0 0 1rem 0;
     color: var(--text-primary);
@@ -492,4 +660,125 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* Expense Filter Dropdown (Looks like Header) */
+.expense-filter-dropdown {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    background-color: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 0 24px 0 0;
+    /* Space for arrow on the right */
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    transition: all 0.2s ease;
+
+    /* Custom Arrow - Primary Color (#facc15 / var(--primary)) */
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23facc15' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right center;
+    background-size: 20px;
+}
+
+.expense-filter-dropdown:hover {
+    opacity: 0.8;
+}
+
+.expense-filter-dropdown:focus {
+    outline: none;
+}
+
+/* Dropdown options styling */
+.expense-filter-dropdown option {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+/* Consolidated Debts View */
+.debts-section-preview {
+    margin-bottom: 24px;
+    animation: fadeIn 0.3s ease;
+}
+
+.debt-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    /* Clickable now */
+}
+
+/* Remove hover scale for simple text cards if preferred, keeping slight lift */
+.debt-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: var(--primary);
+}
+
+.debt-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.debt-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.debt-amount {
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.debt-amount.negative {
+    color: #ef4444;
+}
+
+.debt-amount.positive {
+    color: #22c55e;
+}
+
+.debt-amount.neutral {
+    color: var(--text-secondary);
+}
+
+.other-debts-section {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--border-color);
+}
+
+.remind-btn:hover {
+    background: var(--bg-secondary);
+    border-color: var(--text-muted);
+}
+
+
+
+/* Empty Debts State */
+.empty-debts {
+    padding: 24px;
+    text-align: center;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--border-color);
+    margin-bottom: 24px;
+}
+
+.empty-debts p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 0;
+    font-weight: 500;
 }
