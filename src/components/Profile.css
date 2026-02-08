@@ -142,6 +142,16 @@
     background: #f3f4f6;
 }
 
+.input-wrapper.missing-upi {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.input-wrapper.missing-upi:focus-within {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
 .input-icon {
     position: absolute;
     left: 12px;

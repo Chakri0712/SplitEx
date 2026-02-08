@@ -3,23 +3,23 @@
 }
 
 .mb-8 {
-    margin-bottom: 2rem;
+    margin-bottom: 1.25rem;
 }
 
 .invite-section {
     background: var(--bg-card);
-    padding: 0.75rem;
+    padding: 0.6rem;
     border-radius: 8px;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
     border: 1px solid var(--border-color);
 }
 
 .section-label {
     display: block;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 700;
     color: var(--text-muted);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     letter-spacing: 0.05em;
 }
 
@@ -32,20 +32,21 @@
     flex: 1;
     background: var(--bg-input);
     border: 1px solid var(--border-color);
-    padding: 10px;
+    padding: 8px;
     border-radius: 6px;
     font-family: monospace;
     font-weight: 700;
     letter-spacing: 2px;
     text-align: center;
     color: var(--primary);
+    font-size: 0.9rem;
 }
 
 .copy-btn {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: 6px;
-    width: 44px;
+    width: 38px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -75,22 +76,23 @@
 
 .danger-zone {
     border-top: 1px solid var(--border-color);
-    padding-top: 1.5rem;
+    padding-top: 1rem;
 }
 
 .leave-btn {
     width: 100%;
-    padding: 12px;
+    padding: 10px;
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 10px;
+    border-radius: 8px;
     font-weight: 600;
+    font-size: 0.9rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     transition: all 0.2s;
 }
 
@@ -103,25 +105,25 @@
 .members-section {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    padding: 0.75rem;
+    padding: 0.6rem;
     border-radius: 8px;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .members-list-scroll {
-    max-height: 150px;
+    max-height: 100px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-top: 10px;
+    gap: 8px;
+    margin-top: 6px;
 }
 
 .member-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding-bottom: 10px;
+    gap: 8px;
+    padding-bottom: 8px;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -131,8 +133,8 @@
 }
 
 .member-avatar-placeholder {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: var(--bg-input);
     border: 1px solid var(--border-color);
@@ -154,7 +156,7 @@
 
 .member-name {
     font-weight: 500;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: var(--text-primary);
     line-height: 1.2;
 }
@@ -188,12 +190,12 @@
 /* Currency Select */
 .currency-select {
     width: 100%;
-    padding: 12px;
+    padding: 10px;
     background: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     color: var(--text-primary);
-    font-size: 1rem;
+    font-size: 0.95rem;
     cursor: pointer;
 }
 
@@ -210,18 +212,18 @@
 /* Save Button - Gold style */
 .save-btn {
     width: 100%;
-    padding: 12px 16px;
-    border-radius: 20px;
+    padding: 10px 14px;
+    border-radius: 16px;
     border: none;
     background: var(--primary);
     color: #111827;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 700;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     transition: all 0.2s ease;
     box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3);
 }

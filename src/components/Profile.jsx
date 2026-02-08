@@ -147,13 +147,13 @@ export default function Profile({ session }) {
 
                         <div className="info-group">
                             <label>UPI ID</label>
-                            <div className="input-wrapper">
+                            <div className={`input-wrapper ${!upiId ? 'missing-upi' : ''}`}>
                                 <Smartphone size={20} className="input-icon" />
                                 <input
                                     type="text"
                                     value={upiId}
                                     onChange={(e) => setUpiId(e.target.value)}
-                                    placeholder="yourname@upi"
+                                    placeholder="1234567890@upi"
                                     className="profile-input"
                                 />
                             </div>

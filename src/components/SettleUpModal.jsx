@@ -627,6 +627,28 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                                     </span>
                                 </div>
                             )}
+
+                            {/* Prompt for payer to add UPI ID */}
+                            {!members.find(m => m.id === currentUser.id)?.upiId && (
+                                <div style={{
+                                    textAlign: 'center',
+                                    marginTop: '12px',
+                                    padding: '8px 12px',
+                                    background: 'rgba(234, 179, 8, 0.1)',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(234, 179, 8, 0.3)'
+                                }}>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                                        💡 <a
+                                            href="/profile"
+                                            onClick={(e) => { e.preventDefault(); window.location.href = '/profile'; }}
+                                            style={{ color: 'var(--primary)', textDecoration: 'underline', fontWeight: 600 }}
+                                        >
+                                            Add your UPI ID
+                                        </a> to receive instant payments
+                                    </span>
+                                </div>
+                            )}
                         </>
                     )}
                 </form>

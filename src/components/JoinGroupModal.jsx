@@ -11,7 +11,11 @@ export default function JoinGroupModal({ onClose, onGroupJoined }) {
 
     const handleJoin = async (e) => {
         e.preventDefault()
-        if (!code.trim()) return
+
+        // Prevent API call if code is invalid
+        if (!code || !code.trim() || code.includes(' ') || code.length !== 6) {
+            return
+        }
 
         setLoading(true)
         setError(null)
@@ -56,11 +60,14 @@ export default function JoinGroupModal({ onClose, onGroupJoined }) {
                             maxLength={6}
                             style={{ letterSpacing: '2px', textTransform: 'uppercase' }}
                         />
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                            6 characters, no spaces or special characters
+                        </span>
                     </div>
 
                     {error && <div className="error-message" style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
 
-                    <button type="submit" disabled={loading} className="create-btn">
+                    <button type="submit" disabled={loading || !code.trim() || code.includes(' ') || code.length !== 6} className="create-btn">
                         {loading ? <Loader2 className="spin" /> : 'Join Group'}
                     </button>
                 </form>

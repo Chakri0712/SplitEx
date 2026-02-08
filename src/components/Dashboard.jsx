@@ -5,19 +5,24 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Users, LogOut, ExternalLink, UserPlus, User } from 'lucide-react'
 import CreateGroupModal from './CreateGroupModal'
 import JoinGroupModal from './JoinGroupModal'
+import UpiPromptBanner from './UpiPromptBanner'
 import './Dashboard.css'
 
 export default function Dashboard({ session, onGroupSelect }) {
-    const navigate = useNavigate() // Needed for navigation
+    const navigate = useNavigate()
     const [groups, setGroups] = useState([])
     const [loading, setLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isJoinModalOpen, setIsJoinModalOpen] = useState(false)
-
     const [isActionMenuOpen, setIsActionMenuOpen] = useState(false)
+
+    // UPI Prompt states
+    const [userUpiId, setUserUpiId] = useState(null)
+    const [showUpiPrompt, setShowUpiPrompt] = useState(false)
 
     useEffect(() => {
         fetchGroups()
+        checkUpiPrompt()
     }, [])
 
     const fetchGroups = async () => {
@@ -38,6 +43,38 @@ export default function Dashboard({ session, onGroupSelect }) {
         } finally {
             setLoading(false)
         }
+    }
+
+    const checkUpiPrompt = async () => {
+        const userId = session.user.id
+        const dismissKey = `upi_prompt_dismissed_${userId}`
+
+        // Check if user dismissed the prompt
+        const isDismissed = localStorage.getItem(dismissKey)
+        if (isDismissed) {
+            setShowUpiPrompt(false)
+            return
+        }
+
+        // Fetch user's UPI ID
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('upi_id')
+            .eq('id', userId)
+            .single()
+
+        if (!error && data) {
+            setUserUpiId(data.upi_id)
+            // Show prompt only if no UPI ID
+            setShowUpiPrompt(!data.upi_id)
+        }
+    }
+
+    const handleDismissUpiPrompt = () => {
+        const userId = session.user.id
+        const dismissKey = `upi_prompt_dismissed_${userId}`
+        localStorage.setItem(dismissKey, 'true')
+        setShowUpiPrompt(false)
     }
 
     const handleGroupAction = () => {
@@ -61,13 +98,24 @@ export default function Dashboard({ session, onGroupSelect }) {
                     >
                         Home
                     </button>
-                    <button onClick={() => navigate('/profile')} className="profile-btn-header" title="My Profile">
+                    <button onClick={() => navigate('/profile')} className="profile-btn-header" title="My Profile" style={{ position: 'relative' }}>
                         <div className="header-avatar-placeholder">
                             <User size={20} />
                         </div>
+                        {!userUpiId && (
+                            <span className="profile-badge"></span>
+                        )}
                     </button>
                 </div>
             </header>
+
+            {/* UPI Prompt Banner */}
+            {showUpiPrompt && (
+                <UpiPromptBanner
+                    onDismiss={handleDismissUpiPrompt}
+                    userId={session.user.id}
+                />
+            )}
 
             {loading ? (
                 <div className="loading-state">Loading groups...</div>
