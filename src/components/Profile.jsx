@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { X, LogOut, Mail, User } from 'lucide-react'
+import { X, LogOut, Mail, User, Smartphone } from 'lucide-react'
 import './Profile.css'
 import { validateName } from '../utils/validation'
 
@@ -13,9 +13,28 @@ export default function Profile({ session }) {
     const [isSigningOut, setIsSigningOut] = useState(false)
     const { user } = session
     const [fullName, setFullName] = useState(user.user_metadata?.full_name || '')
+    const [upiId, setUpiId] = useState('')
+    const [originalUpiId, setOriginalUpiId] = useState('')
     const [email] = useState(user.email)
     const [message, setMessage] = useState(null)
-    const [error, setError] = useState(null) // Local error state for validation
+    const [error, setError] = useState(null)
+
+    // Fetch existing UPI ID from profiles table
+    useEffect(() => {
+        const fetchUpiId = async () => {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('upi_id')
+                .eq('id', user.id)
+                .single()
+
+            if (!error && data?.upi_id) {
+                setUpiId(data.upi_id)
+                setOriginalUpiId(data.upi_id)
+            }
+        }
+        fetchUpiId()
+    }, [user.id])
 
     const handleUpdate = async () => {
         setMessage(null)
@@ -28,25 +47,39 @@ export default function Profile({ session }) {
             return
         }
 
-        if (fullName === user.user_metadata?.full_name) return
+        // Basic UPI ID validation (optional field)
+        if (upiId && !/^[\w.]+@[\w]+$/.test(upiId.trim())) {
+            setError('Invalid UPI ID format (e.g., name@upi or 9876543210@ybl)')
+            return
+        }
+
+        const nameChanged = fullName !== user.user_metadata?.full_name
+        const upiChanged = upiId !== originalUpiId
+
+        if (!nameChanged && !upiChanged) return
 
         setIsSaving(true)
         try {
-            // 1. Update public profile
+            // 1. Update public profile (name and UPI ID)
             const { error: profileError } = await supabase
                 .from('profiles')
-                .update({ full_name: fullName.trim() }) // Trim before saving
+                .update({
+                    full_name: fullName.trim(),
+                    upi_id: upiId.trim() || null
+                })
                 .eq('id', user.id)
 
             if (profileError) throw profileError
 
-            // 2. Update auth metadata
-            const { error: authError } = await supabase.auth.updateUser({
-                data: { full_name: fullName.trim() }
-            })
+            // 2. Update auth metadata (only for name)
+            if (nameChanged) {
+                const { error: authError } = await supabase.auth.updateUser({
+                    data: { full_name: fullName.trim() }
+                })
+                if (authError) throw authError
+            }
 
-            if (authError) throw authError
-
+            setOriginalUpiId(upiId.trim())
             setMessage('Profile updated successfully!')
             setTimeout(() => setMessage(null), 3000)
         } catch (error) {
@@ -111,6 +144,21 @@ export default function Profile({ session }) {
                                 />
                             </div>
                         </div>
+
+                        <div className="info-group">
+                            <label>UPI ID</label>
+                            <div className="input-wrapper">
+                                <Smartphone size={20} className="input-icon" />
+                                <input
+                                    type="text"
+                                    value={upiId}
+                                    onChange={(e) => setUpiId(e.target.value)}
+                                    placeholder="yourname@upi"
+                                    className="profile-input"
+                                />
+                            </div>
+                            <span className="input-helper">Add your UPI ID so others can pay you directly</span>
+                        </div>
                     </div>
 
                     {error && <div className="error-message-profile">{error}</div>}
@@ -120,7 +168,7 @@ export default function Profile({ session }) {
                         <button
                             className="update-btn"
                             onClick={handleUpdate}
-                            disabled={isSaving || isSigningOut || fullName === user.user_metadata?.full_name}
+                            disabled={isSaving || isSigningOut || (fullName === user.user_metadata?.full_name && upiId === originalUpiId)}
                         >
                             {isSaving ? 'Saving...' : 'Save Changes'}
                         </button>

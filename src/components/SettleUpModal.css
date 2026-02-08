@@ -2,10 +2,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 1rem;
-    /* Reduced from 2rem */
+    margin-bottom: 0.75rem;
     background: var(--bg-input);
-    padding: 1.5rem;
+    padding: 1rem;
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-color);
 }
@@ -66,11 +65,10 @@
 /* Input Section (Amount + Note) */
 .input-section {
     background: var(--bg-card);
-    padding: 12px;
+    padding: 8px;
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-color);
-    margin-bottom: 12px;
-    /* Reduced from 20px */
+    margin-bottom: 6px;
 }
 
 .amount-group label {
@@ -143,8 +141,8 @@
 /* Settlement Buttons */
 .settlement-options {
     display: flex;
-    gap: 12px;
-    margin-top: 1rem;
+    gap: 10px;
+    margin-top: 0.75rem;
 }
 
 .settle-option-btn {
@@ -152,14 +150,13 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 16px 12px;
+    gap: 6px;
+    padding: 12px 10px;
     border-radius: var(--radius-lg);
     border: 1px solid rgba(250, 204, 21, 0.3);
-    /* Gold Edges */
     background: var(--bg-input);
     color: var(--text-primary);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;

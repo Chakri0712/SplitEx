@@ -120,7 +120,7 @@ export default function GroupDetails({ session, group, onBack }) {
             // Fetch profiles for everyone involved
             const { data: profilesData, error: profilesError } = await supabase
                 .from('profiles')
-                .select('id, full_name, avatar_url')
+                .select('id, full_name, avatar_url, upi_id')
                 .in('id', uniqueUserIds)
 
             if (profilesError) throw profilesError
@@ -143,6 +143,7 @@ export default function GroupDetails({ session, group, onBack }) {
                     id: uid,
                     name: (profile?.full_name || 'Unknown') + (!isCurrent ? ' (Left)' : ''),
                     avatar: profile?.avatar_url,
+                    upiId: profile?.upi_id || null,
                     isCurrent: isCurrent
                 }
             })
@@ -386,7 +387,7 @@ export default function GroupDetails({ session, group, onBack }) {
                                             if (amountTheyOwe > 0.01) {
                                                 hasDebts = true
                                                 return (
-                                                    <div key={user.id} className="debt-card owed" onClick={() => openSettleModalWithData({ payer: user.id, receiver: session.user.id, amount: amountTheyOwe, locked: true })}>
+                                                    <div key={user.id} className="debt-card owed">
                                                         <div className="debt-info">
                                                             <div className="debt-text">
                                                                 <span><strong>{user.name}</strong> owes you</span>

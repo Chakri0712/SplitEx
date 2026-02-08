@@ -15,6 +15,7 @@ create table if not exists profiles (
   email text,
   full_name text,
   avatar_url text,
+  upi_id text,
   updated_at timestamp with time zone
 );
 

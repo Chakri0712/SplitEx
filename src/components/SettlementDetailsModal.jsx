@@ -7,6 +7,7 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
     const [loading, setLoading] = useState(true)
     const [updating, setUpdating] = useState(false)
     const [details, setDetails] = useState(null)
+    const [receiver, setReceiver] = useState(null) // The actual receiver from expense_splits
     const [utrInput, setUtrInput] = useState('')
     const [showUtrForm, setShowUtrForm] = useState(false)
 
@@ -20,6 +21,7 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
 
     const fetchSettlementDetails = async () => {
         try {
+            // Fetch settlement details
             const { data, error } = await supabase
                 .from('settlement_details')
                 .select('*')
@@ -28,6 +30,18 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
 
             if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows found
             setDetails(data)
+
+            // Fetch the receiver from expense_splits
+            const { data: splits, error: splitsError } = await supabase
+                .from('expense_splits')
+                .select('user_id')
+                .eq('expense_id', expense.id)
+                .limit(1)
+                .single()
+
+            if (!splitsError && splits) {
+                setReceiver(splits.user_id)
+            }
         } catch (error) {
             console.error('Error fetching details:', error)
         } finally {
@@ -153,8 +167,8 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
         }
     }
 
-    // Check permissions
-    const isReceiver = expense.paid_by !== currentUser.id // Current user is RECEIVING the money (paid_by is the Payer)
+    // Check permissions - use actual receiver from expense_splits
+    const isReceiver = receiver && receiver === currentUser.id
     const isPayer = expense.paid_by === currentUser.id
 
     // Actions Logic
@@ -252,14 +266,22 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
                                 </div>
                             )}
 
-                            {/* Initiated By */}
+                            {/* Initiated By (Payer) */}
                             <div className="detail-row">
-                                <span className="detail-label">Initiated by</span>
+                                <span className="detail-label">From</span>
                                 <div className="detail-value">
                                     <span className="truncated-name">{getMemberName(expense.paid_by)}</span>
                                     <span className="timestamp">{formatDate(expense.created_at)}</span>
                                 </div>
                             </div>
+
+                            {/* To (Receiver) */}
+                            {receiver && (
+                                <div className="detail-row">
+                                    <span className="detail-label">To</span>
+                                    <span className="detail-value truncated-name">{getMemberName(receiver)}</span>
+                                </div>
+                            )}
 
                             {/* UTR Details */}
                             {details?.utr_reference && (

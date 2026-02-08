@@ -16,12 +16,10 @@
 
 .modal-card {
     background: var(--bg-card);
-    padding: 1.25rem;
-    /* Tighter */
+    padding: 1rem;
     border-radius: var(--radius-lg);
     width: 100%;
     max-width: 400px;
-    /* Narrower for mobile feel */
     max-height: 90vh;
     overflow-y: auto;
     position: relative;
@@ -71,9 +69,9 @@
     width: 100%;
     background: var(--primary);
     color: #0f172a;
-    padding: 12px;
+    padding: 10px;
     border-radius: var(--radius-md);
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 700;
     display: flex;
     justify-content: center;
@@ -109,17 +107,17 @@
 
 .delete-expense-btn {
     width: 100%;
-    margin-top: 1rem;
+    margin-top: 0.75rem;
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
-    padding: 14px;
+    padding: 10px;
     border-radius: var(--radius-md);
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 700;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     border: none;
     cursor: pointer;
     transition: all 0.2s;

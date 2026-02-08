@@ -240,6 +240,13 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
     const handleUpiSettle = async () => {
         if (!amount || !receiver) return
 
+        // Get receiver's UPI ID
+        const receiverMember = members.find(m => m.id === receiver)
+        if (!receiverMember?.upiId) {
+            alert('The receiver has not added their UPI ID. Please use Manual Settlement instead.')
+            return
+        }
+
         const maxAmount = getMaxSettleAmount()
         if (parseFloat(amount) > maxAmount + 0.01) {
             alert(`You can only settle up to ${group.currency} ${maxAmount.toFixed(2)} that you owe.`)
@@ -252,10 +259,11 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
             await insertSettlementDetails(expenseId, 'upi', 'pending_utr')
             setPendingExpenseId(expenseId)
 
-            // Generate UPI Intent Link
+            // Generate UPI Intent Link with receiver's UPI ID
             const upiAmount = parseFloat(amount).toFixed(2)
             const note = encodeURIComponent(`SplitEx Settlement - ${group.name}`)
-            const upiLink = `upi://pay?am=${upiAmount}&cu=INR&tn=${note}`
+            const payeeUpi = encodeURIComponent(receiverMember.upiId)
+            const upiLink = `upi://pay?pa=${payeeUpi}&am=${upiAmount}&cu=INR&tn=${note}`
 
             // Open UPI App
             window.location.href = upiLink
@@ -582,29 +590,44 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                         </>
                     ) : (
                         /* Create Mode: Dual Settlement Buttons */
-                        <div className="settlement-options">
-                            <button
-                                type="button"
-                                onClick={handleManualSettle}
-                                disabled={loading || !amount || !receiver}
-                                className="settle-option-btn manual"
-                            >
-                                <HandCoins size={20} />
-                                <span>Settle Manually</span>
-                            </button>
-
-                            {isUpiAvailable && (
+                        <>
+                            <div className="settlement-options">
                                 <button
                                     type="button"
-                                    onClick={handleUpiSettle}
+                                    onClick={handleManualSettle}
                                     disabled={loading || !amount || !receiver}
-                                    className="settle-option-btn upi"
+                                    className="settle-option-btn manual"
                                 >
-                                    <Smartphone size={20} />
-                                    <span>Pay via UPI</span>
+                                    <HandCoins size={20} />
+                                    <span>Settle Manually</span>
                                 </button>
+
+                                {isUpiAvailable && (() => {
+                                    const receiverMember = members.find(m => m.id === receiver)
+                                    const receiverHasUpi = receiverMember?.upiId
+                                    return (
+                                        <button
+                                            type="button"
+                                            onClick={handleUpiSettle}
+                                            disabled={loading || !amount || !receiver || !receiverHasUpi}
+                                            className="settle-option-btn upi"
+                                            title={!receiverHasUpi ? 'Receiver has not added UPI ID' : ''}
+                                        >
+                                            <Smartphone size={20} />
+                                            <span>Pay via UPI</span>
+                                        </button>
+                                    )
+                                })()}
+                            </div>
+                            {/* UPI not available message - below buttons */}
+                            {isUpiAvailable && receiver && !members.find(m => m.id === receiver)?.upiId && (
+                                <div style={{ textAlign: 'center', marginTop: '8px' }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>
+                                        Receiver hasn't added UPI ID
+                                    </span>
+                                </div>
                             )}
-                        </div>
+                        </>
                     )}
                 </form>
             </div >

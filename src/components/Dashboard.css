@@ -1,9 +1,7 @@
 .dashboard-container {
-    padding: 20px;
-    padding-bottom: 100px;
-    /* Space for FAB */
+    padding: 14px;
+    padding-bottom: 80px;
     max-width: 800px;
-    /* narrowed for list view */
     margin: 0 auto;
     min-height: 100vh;
 }
@@ -12,19 +10,19 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 2rem;
+    margin-bottom: 1.25rem;
 }
 
 .header-left h1 {
-    font-size: 1.8rem;
+    font-size: 1.5rem;
     font-weight: 800;
     color: var(--text-primary);
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .header-left p {
     color: var(--text-muted);
-    font-size: 0.95rem;
+    font-size: 0.85rem;
 }
 
 .profile-btn-header {
@@ -38,8 +36,8 @@
 }
 
 .header-avatar {
-    width: 44px;
-    height: 44px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     border: 2px solid var(--border-color);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -91,13 +89,13 @@
 .groups-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
 }
 
 .group-list-item {
     background: var(--bg-card);
-    padding: 16px;
-    border-radius: 12px;
+    padding: 12px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -116,21 +114,20 @@
 .group-item-left {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
 }
 
 .group-icon-small {
-    width: 42px;
-    height: 42px;
+    width: 38px;
+    height: 38px;
     background: var(--primary);
     color: #111827;
-    /* Dark text on gold for contrast */
     font-weight: 700;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 
 .group-info-row h3 {
@@ -173,15 +170,13 @@
 }
 
 .fab-main {
-    width: 56px;
-    height: 56px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     background: var(--primary);
     color: #1f2937;
-    /* Dark icon on gold */
     border: none;
     box-shadow: 0 4px 12px rgba(234, 179, 8, 0.4);
-    /* Gold shadow */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -211,13 +206,14 @@
     background: var(--bg-card);
     color: var(--text-primary);
     border: none;
-    padding: 12px 20px;
-    border-radius: 30px;
+    padding: 10px 16px;
+    border-radius: 24px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     font-weight: 600;
+    font-size: 0.9rem;
     cursor: pointer;
     transition: transform 0.2s;
     white-space: nowrap;

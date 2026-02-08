@@ -30,11 +30,11 @@
   --danger: #ef4444;
   --danger-bg: rgba(239, 68, 68, 0.15);
 
-  /* Borders & Radius */
+  /* Borders & Radius - Tighter for native app feel */
   --border-color: #404040;
-  --radius-lg: 16px;
-  --radius-md: 12px;
-  --radius-sm: 8px;
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --radius-sm: 6px;
 
   /* Font */
   --font-sans: 'Inter', system-ui, sans-serif;
@@ -150,13 +150,11 @@ h6 {
 /* Primary Button Style */
 .btn-primary {
   background: linear-gradient(135deg, var(--primary) 0%, #FFC107 100%);
-  /* Gold Gradient */
   color: #000000;
-  /* Dark text on bright button */
-  padding: 12px 24px;
+  padding: 10px 20px;
   border-radius: var(--radius-md);
   font-weight: 600;
-  box-shadow: 0 4px 6px -1px elseif(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .btn-primary:hover {
@@ -166,8 +164,8 @@ h6 {
 }
 
 .btn-icon-round {
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--bg-input);
   color: var(--text-secondary);
@@ -186,10 +184,10 @@ input {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  padding: 12px;
+  padding: 10px;
   border-radius: var(--radius-sm);
   width: 100%;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 input:focus {
@@ -207,9 +205,10 @@ input:focus {
 .modal-card {
   background: var(--bg-secondary) !important;
   border: 1px solid var(--border-color) !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  box-shadow: 0 10px 15px -5px rgba(0, 0, 0, 0.2) !important;
   color: var(--text-primary) !important;
   border-radius: var(--radius-lg) !important;
+  padding: 16px !important;
 }
 
 /* Global Close Button Fix */
@@ -220,7 +219,7 @@ input:focus {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 8px !important;
+  padding: 6px !important;
   border-radius: 50% !important;
   transition: all 0.2s !important;
   box-shadow: none !important;
