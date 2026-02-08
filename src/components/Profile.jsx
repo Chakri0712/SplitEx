@@ -120,7 +120,7 @@ export default function Profile({ session }) {
 
                     <div className="profile-info">
                         <div className="info-group">
-                            <label>Full Name</label>
+                            <label>User Name</label>
                             <div className="input-wrapper">
                                 <User size={20} className="input-icon" />
                                 <input

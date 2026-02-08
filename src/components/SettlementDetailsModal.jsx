@@ -118,6 +118,82 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
     const handleConfirm = async () => {
         setUpdating(true)
         try {
+            // Calculate total pending + current settlement for this debt pair
+            const payer = expense.paid_by
+            const receiverId = receiver
+
+            // Get all expenses between this payer and receiver
+            const { data: allExpenses, error: expError } = await supabase
+                .from('expenses')
+                .select('id, paid_by, amount')
+                .eq('group_id', expense.group_id)
+
+            if (expError) throw expError
+
+            const expenseIds = allExpenses?.map(e => e.id) || []
+
+            // Get all splits
+            const { data: allSplits, error: splitsError } = await supabase
+                .from('expense_splits')
+                .select('expense_id, user_id, owe_amount')
+                .in('expense_id', expenseIds)
+
+            if (splitsError) throw splitsError
+
+            // Calculate actual debt: how much payer owes receiver
+            let actualDebt = 0
+
+            allExpenses.forEach(exp => {
+                if (exp.paid_by === receiverId) {
+                    // Receiver paid, check if payer owes
+                    const split = allSplits.find(s => s.expense_id === exp.id && s.user_id === payer)
+                    if (split) {
+                        actualDebt += parseFloat(split.owe_amount)
+                    }
+                } else if (exp.paid_by === payer) {
+                    // Payer paid, check if receiver owes (reduces debt)
+                    const split = allSplits.find(s => s.expense_id === exp.id && s.user_id === receiverId)
+                    if (split) {
+                        actualDebt -= parseFloat(split.owe_amount)
+                    }
+                }
+            })
+
+            // Get all pending/confirmed settlements for this pair
+            const { data: settlements, error: settError } = await supabase
+                .from('settlement_details')
+                .select('expense_id, settlement_status')
+                .in('expense_id', expenseIds)
+                .in('settlement_status', ['pending_utr', 'pending_confirmation', 'confirmed'])
+
+            if (settError) throw settError
+
+            // Calculate total settlement amount (pending + confirmed)
+            let totalSettlements = 0
+            settlements?.forEach(s => {
+                const settleExp = allExpenses.find(e => e.id === s.expense_id)
+                if (settleExp) {
+                    totalSettlements += parseFloat(settleExp.amount)
+                }
+            })
+
+            // Check if confirming this would exceed actual debt
+            if (totalSettlements > actualDebt + 0.01) {
+                const currency = expense.description?.match(/[A-Z]{3}/)?.[0] || 'INR'
+                const excess = totalSettlements - actualDebt
+
+                if (!confirm(
+                    `Warning: Confirming this settlement will result in ${currency} ${excess.toFixed(2)} more than you're actually owed (${currency} ${actualDebt.toFixed(2)}).\n\n` +
+                    `Total settlements: ${currency} ${totalSettlements.toFixed(2)}\n` +
+                    `Actual debt: ${currency} ${actualDebt.toFixed(2)}\n\n` +
+                    `Do you still want to continue?`
+                )) {
+                    setUpdating(false)
+                    return
+                }
+            }
+
+            // Proceed with confirmation
             const { error } = await supabase
                 .from('settlement_details')
                 .update({

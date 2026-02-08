@@ -38,6 +38,15 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
         return ''
     })
 
+    // Amount input validation handler
+    const handleAmountChange = (e) => {
+        const value = e.target.value
+        // Allow empty, numbers, and max 2 decimal places
+        if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+            setAmount(value)
+        }
+    }
+
     // Settlement Flow State
     const [showUtrPrompt, setShowUtrPrompt] = useState(false)
     const [utrReference, setUtrReference] = useState('')
@@ -538,12 +547,11 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                             <div className="currency-input">
                                 <span className="currency-symbol">{group.currency === 'USD' ? '$' : group.currency === 'EUR' ? '€' : group.currency === 'INR' ? '₹' : group.currency}</span>
                                 <input
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     placeholder="0.00"
                                     value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    min="0"
-                                    step="0.01"
+                                    onChange={handleAmountChange}
                                 />
                             </div>
                         </div>
@@ -595,7 +603,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                                 <button
                                     type="button"
                                     onClick={handleManualSettle}
-                                    disabled={loading || !amount || !receiver}
+                                    disabled={loading || !amount || !receiver || parseFloat(amount) <= 0}
                                     className="settle-option-btn manual"
                                 >
                                     <HandCoins size={20} />
@@ -609,7 +617,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                                         <button
                                             type="button"
                                             onClick={handleUpiSettle}
-                                            disabled={loading || !amount || !receiver || !receiverHasUpi}
+                                            disabled={loading || !amount || !receiver || !receiverHasUpi || parseFloat(amount) <= 0}
                                             className="settle-option-btn upi"
                                             title={!receiverHasUpi ? 'Receiver has not added UPI ID' : ''}
                                         >

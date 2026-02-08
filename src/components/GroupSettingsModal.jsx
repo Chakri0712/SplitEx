@@ -14,6 +14,7 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
     const [copied, setCopied] = useState(false)
     const [members, setMembers] = useState([])
     const [memberCount, setMemberCount] = useState(0)
+    const [expenseCount, setExpenseCount] = useState(0)
     const [error, setError] = useState(null)
 
     useEffect(() => {
@@ -38,6 +39,23 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
             }
         }
         fetchMembers()
+
+        // Fetch expense count
+        const fetchExpenseCount = async () => {
+            try {
+                const { count, error } = await supabase
+                    .from('expenses')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('group_id', group.id)
+
+                if (!error) {
+                    setExpenseCount(count || 0)
+                }
+            } catch (err) {
+                console.error('Error fetching expense count:', err)
+            }
+        }
+        fetchExpenseCount()
     }, [group.id])
 
     const handleCopyCode = () => {
@@ -130,12 +148,13 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                 }
             })
 
-            // Prevent leaving if they owe money (balance < -0.01 to account for rounding)
-            if (balance < -0.01) {
-                alert(
-                    `You cannot leave this group because you owe ${group.currency} ${Math.abs(balance).toFixed(2)}.\n\n` +
-                    `Please settle your debts before leaving the group.`
-                )
+            // Prevent leaving if they have ANY unsettled balance
+            if (Math.abs(balance) > 0.01) {
+                const message = balance < 0
+                    ? `You cannot leave this group because you owe ${group.currency} ${Math.abs(balance).toFixed(2)}.\n\nPlease settle your debts before leaving.`
+                    : `You cannot leave this group because you are owed ${group.currency} ${balance.toFixed(2)}.\n\nPlease settle all debts before leaving.`
+
+                alert(message)
                 setLoading(false)
                 return
             }
@@ -273,7 +292,7 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                             <select
                                 value={currency}
                                 onChange={(e) => setCurrency(e.target.value)}
-                                disabled={group.created_by !== currentUser.id && memberCount !== 1}
+                                disabled={expenseCount > 0}
                                 className="currency-select"
                             >
                                 <option value="USD">USD - US Dollar</option>
@@ -281,6 +300,11 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                                 <option value="EUR">EUR - Euro</option>
                                 <option value="GBP">GBP - British Pound</option>
                             </select>
+                            {expenseCount > 0 && (
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                                    Currency cannot be changed after expenses are added
+                                </span>
+                            )}
                         </div>
 
                         {(group.created_by === currentUser.id || memberCount === 1) && (

@@ -97,32 +97,32 @@ export default function LandingPage({ session }) {
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />
                         <h3>Smart Splits</h3>
-                        <p>Split equally, unequally, or by shares. We handle the math.</p>
+                        <p>Split equally, unequally, or by custom shares. We handle the math.</p>
                     </div>
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />
-                        <h3>Visual Balances</h3>
-                        <p>Detailed member breakdown bars and lists show exactly who owes what.</p>
+                        <h3>Instant UPI Payments</h3>
+                        <p>Pay friends directly via UPI with one tap. Made for India. 🇮🇳</p>
                     </div>
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />
-                        <h3>Easy Settlements</h3>
-                        <p>Record payments and settle up debts with just a few clicks.</p>
+                        <h3>Settlement Verification</h3>
+                        <p>Track payment confirmations with UTR references. No more "Did you pay?" messages.</p>
                     </div>
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />
                         <h3>Group Management</h3>
-                        <p>Invite friends via code, manage permissions, and control your groups.</p>
+                        <p>Create groups, invite friends via code, and track expenses together.</p>
                     </div>
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />
-                        <h3>Profile Customization</h3>
-                        <p>Set your display name and identity across all your groups.</p>
+                        <h3>Real-time Balances</h3>
+                        <p>See who owes you and who you owe instantly. Always up to date.</p>
                     </div>
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />
-                        <h3>Mobile Operating</h3>
-                        <p>Optimized for any device. Install as a PWA for a native app feel.</p>
+                        <h3>Mobile Optimized</h3>
+                        <p>Native mobile app feel. Works on any device, anywhere.</p>
                     </div>
                 </div>
             </section>

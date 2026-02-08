@@ -22,6 +22,15 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
     const [splitMode, setSplitMode] = useState('EQUAL') // 'EQUAL' or 'UNEQUAL'
     const [customSplits, setCustomSplits] = useState({})
 
+    // Amount input validation handler
+    const handleAmountChange = (e) => {
+        const value = e.target.value
+        // Allow empty, numbers, and max 2 decimal places
+        if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+            setAmount(value)
+        }
+    }
+
     // useEffect(() => {
     //     fetchMembers()
     // }, [])
@@ -291,13 +300,11 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                     <div className="form-group">
                         <label>Amount ({group.currency})</label>
                         <input
-                            type="number"
+                            type="text"
                             inputMode="decimal"
                             placeholder="0.00"
-                            step="0.01"
                             value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
+                            onChange={handleAmountChange}
                             required
                             className="amount-input"
                         />
