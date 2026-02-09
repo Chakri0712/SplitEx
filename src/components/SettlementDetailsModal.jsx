@@ -3,7 +3,7 @@ import { X, Check, Clock, AlertCircle, Smartphone, HandCoins, Loader2 } from 'lu
 import { supabase } from '../supabaseClient'
 import './SettlementDetailsModal.css'
 
-export default function SettlementDetailsModal({ expense, currentUser, members, onClose, onUpdate }) {
+export default function SettlementDetailsModal({ expense, currentUser, members, group, onClose, onUpdate }) {
     const [loading, setLoading] = useState(true)
     const [updating, setUpdating] = useState(false)
     const [details, setDetails] = useState(null)
@@ -125,7 +125,7 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
             // Get all expenses between this payer and receiver
             const { data: allExpenses, error: expError } = await supabase
                 .from('expenses')
-                .select('id, paid_by, amount')
+                .select('id, paid_by, amount, category')
                 .eq('group_id', expense.group_id)
 
             if (expError) throw expError
@@ -144,6 +144,9 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
             let actualDebt = 0
 
             allExpenses.forEach(exp => {
+                // Skip settlement records - we only want actual shared expenses
+                if (exp.category === 'settlement') return
+
                 if (exp.paid_by === receiverId) {
                     // Receiver paid, check if payer owes
                     const split = allSplits.find(s => s.expense_id === exp.id && s.user_id === payer)
@@ -164,27 +167,34 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
                 .from('settlement_details')
                 .select('expense_id, settlement_status')
                 .in('expense_id', expenseIds)
-                .in('settlement_status', ['pending_utr', 'pending_confirmation', 'confirmed'])
+                .in('settlement_status', ['confirmed']) // Only count already confirmed settlements
 
             if (settError) throw settError
 
-            // Calculate total settlement amount (pending + confirmed)
-            let totalSettlements = 0
+            // Calculate total of ALREADY CONFIRMED settlements (excluding current one)
+            let totalConfirmedSettlements = 0
             settlements?.forEach(s => {
+                // Skip the current settlement being confirmed
+                if (s.expense_id === expense.id) return
+
                 const settleExp = allExpenses.find(e => e.id === s.expense_id)
                 if (settleExp) {
-                    totalSettlements += parseFloat(settleExp.amount)
+                    totalConfirmedSettlements += parseFloat(settleExp.amount)
                 }
             })
 
+            // Calculate what the total would be if we confirm this settlement
+            const currentSettlementAmount = parseFloat(expense.amount)
+            const totalAfterConfirming = totalConfirmedSettlements + currentSettlementAmount
+
             // Check if confirming this would exceed actual debt
-            if (totalSettlements > actualDebt + 0.01) {
-                const currency = expense.description?.match(/[A-Z]{3}/)?.[0] || 'INR'
-                const excess = totalSettlements - actualDebt
+            if (totalAfterConfirming > actualDebt + 0.01) {
+                const currency = group?.currency || 'USD'
+                const excess = totalAfterConfirming - actualDebt
 
                 if (!confirm(
                     `Warning: Confirming this settlement will result in ${currency} ${excess.toFixed(2)} more than you're actually owed (${currency} ${actualDebt.toFixed(2)}).\n\n` +
-                    `Total settlements: ${currency} ${totalSettlements.toFixed(2)}\n` +
+                    `Total settlements (after confirming): ${currency} ${totalAfterConfirming.toFixed(2)}\n` +
                     `Actual debt: ${currency} ${actualDebt.toFixed(2)}\n\n` +
                     `Do you still want to continue?`
                 )) {
@@ -336,8 +346,8 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
                                 <div className="detail-row">
                                     <span className="detail-label">Method</span>
                                     <span className="detail-value method">
-                                        {getMethodIcon(details.payment_method)}
-                                        {details.payment_method === 'upi' ? 'UPI' : 'Manual Settlement'}
+                                        {getMethodIcon(details.settlement_method)}
+                                        {details.settlement_method === 'upi' ? 'UPI' : 'Manual Settlement'}
                                     </span>
                                 </div>
                             )}

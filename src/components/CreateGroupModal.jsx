@@ -9,6 +9,7 @@ const CURRENCIES = [
     { code: 'EUR', symbol: '€', name: 'Euro' },
     { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
     { code: 'GBP', symbol: '£', name: 'British Pound' },
+    { code: 'CAD', symbol: '$', name: 'Canadian Dollar' },
     { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
 ]
 

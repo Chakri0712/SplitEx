@@ -43,6 +43,23 @@ export default function Auth() {
                 })
                 if (error) throw error
             } else {
+                // Auto-detect country
+                let detectedCountry = 'IND' // Default to India
+                try {
+                    const response = await fetch('https://ipapi.co/json/')
+                    const data = await response.json()
+                    // Prefer ISO3 code (IND, USA) to match DB preference
+                    if (data.country_code_iso3) {
+                        detectedCountry = data.country_code_iso3
+                    } else if (data.country_code) {
+                        // Fallback mapping if only 2-letter code is available
+                        const map = { 'IN': 'IND', 'US': 'USA', 'CA': 'CAN', 'GB': 'GBR', 'JP': 'JPN', 'AU': 'AUS' }
+                        detectedCountry = map[data.country_code] || data.country_code
+                    }
+                } catch (err) {
+                    console.warn('Country detection failed, defaulting to IND', err)
+                }
+
                 const { error } = await supabase.auth.signUp({
                     email,
                     password,
@@ -50,6 +67,7 @@ export default function Auth() {
                         emailRedirectTo: window.location.origin,
                         data: {
                             full_name: fullName,
+                            country: detectedCountry,
                             // avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=random`, // Removed to use generic icon
                         },
                     },

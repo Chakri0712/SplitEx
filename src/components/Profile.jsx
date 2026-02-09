@@ -5,8 +5,6 @@ import { X, LogOut, Mail, User, Smartphone } from 'lucide-react'
 import './Profile.css'
 import { validateName } from '../utils/validation'
 
-// No changes needed for Profile.jsx regarding "lettering in member icon" as it only uses form inputs. StartLine/EndLine are dummy.
-// Check GroupDetails.jsx instead.
 export default function Profile({ session }) {
     const navigate = useNavigate()
     const [isSaving, setIsSaving] = useState(false)
@@ -15,25 +13,43 @@ export default function Profile({ session }) {
     const [fullName, setFullName] = useState(user.user_metadata?.full_name || '')
     const [upiId, setUpiId] = useState('')
     const [originalUpiId, setOriginalUpiId] = useState('')
+    const [country, setCountry] = useState('IND') // Default to India (3-letter ISO)
+    const [originalCountry, setOriginalCountry] = useState('IND')
     const [email] = useState(user.email)
     const [message, setMessage] = useState(null)
     const [error, setError] = useState(null)
 
-    // Fetch existing UPI ID from profiles table
+    // Fetch existing UPI ID and Country from profiles table
     useEffect(() => {
-        const fetchUpiId = async () => {
+        const fetchProfileData = async () => {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('upi_id')
+                .select('upi_id, country')
                 .eq('id', user.id)
                 .single()
 
-            if (!error && data?.upi_id) {
-                setUpiId(data.upi_id)
-                setOriginalUpiId(data.upi_id)
+            if (!error && data) {
+                if (data.upi_id) {
+                    setUpiId(data.upi_id)
+                    setOriginalUpiId(data.upi_id)
+                }
+
+                let loadedCountry = data.country
+                // Fallback to auth metadata if profile is empty
+                if (!loadedCountry && user.user_metadata?.country) {
+                    loadedCountry = user.user_metadata.country
+                }
+
+                if (loadedCountry) {
+                    // Map 2-letter to 3-letter if needed (migration support)
+                    const map = { 'IN': 'IND', 'US': 'USA', 'CA': 'CAN', 'GB': 'GBR', 'JP': 'JPN', 'AU': 'AUS', 'EU': 'EUR' }
+                    const finalCountry = map[loadedCountry] || loadedCountry
+                    setCountry(finalCountry)
+                    setOriginalCountry(finalCountry)
+                }
             }
         }
-        fetchUpiId()
+        fetchProfileData()
     }, [user.id])
 
     const handleUpdate = async () => {
@@ -55,17 +71,19 @@ export default function Profile({ session }) {
 
         const nameChanged = fullName !== user.user_metadata?.full_name
         const upiChanged = upiId !== originalUpiId
+        const countryChanged = country !== originalCountry
 
-        if (!nameChanged && !upiChanged) return
+        if (!nameChanged && !upiChanged && !countryChanged) return
 
         setIsSaving(true)
         try {
-            // 1. Update public profile (name and UPI ID)
+            // 1. Update public profile (name, UPI ID, country)
             const { error: profileError } = await supabase
                 .from('profiles')
                 .update({
                     full_name: fullName.trim(),
-                    upi_id: upiId.trim() || null
+                    upi_id: upiId.trim() || null,
+                    country: country
                 })
                 .eq('id', user.id)
 
@@ -80,6 +98,7 @@ export default function Profile({ session }) {
             }
 
             setOriginalUpiId(upiId.trim())
+            setOriginalCountry(country)
             setMessage('Profile updated successfully!')
             setTimeout(() => setMessage(null), 3000)
         } catch (error) {
@@ -146,19 +165,46 @@ export default function Profile({ session }) {
                         </div>
 
                         <div className="info-group">
-                            <label>UPI ID</label>
-                            <div className={`input-wrapper ${!upiId ? 'missing-upi' : ''}`}>
-                                <Smartphone size={20} className="input-icon" />
-                                <input
-                                    type="text"
-                                    value={upiId}
-                                    onChange={(e) => setUpiId(e.target.value)}
-                                    placeholder="1234567890@upi"
+                            <label>Country</label>
+                            <div className="input-wrapper">
+                                <select
+                                    value={country}
+                                    onChange={(e) => setCountry(e.target.value)}
                                     className="profile-input"
-                                />
+                                    style={{
+                                        background: 'transparent',
+                                        width: '100%',
+                                        color: 'var(--text-primary)', // Text color from theme
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <option value="IND" style={{ color: 'black' }}>India</option>
+                                    <option value="USA" style={{ color: 'black' }}>United States</option>
+                                    <option value="CAN" style={{ color: 'black' }}>Canada</option>
+                                    <option value="GBR" style={{ color: 'black' }}>United Kingdom</option>
+                                    <option value="EUR" style={{ color: 'black' }}>Europe</option>
+                                    <option value="JPN" style={{ color: 'black' }}>Japan</option>
+                                    <option value="AUS" style={{ color: 'black' }}>Australia</option>
+                                </select>
                             </div>
-                            <span className="input-helper">Add your UPI ID so others can pay you directly</span>
                         </div>
+
+                        {country === 'IND' && (
+                            <div className="info-group">
+                                <label>UPI ID</label>
+                                <div className={`input-wrapper ${!upiId ? 'missing-upi' : ''}`}>
+                                    <Smartphone size={20} className="input-icon" />
+                                    <input
+                                        type="text"
+                                        value={upiId}
+                                        onChange={(e) => setUpiId(e.target.value)}
+                                        placeholder="1234567890@upi"
+                                        className="profile-input"
+                                    />
+                                </div>
+                                <span className="input-helper">Add your UPI ID so others can pay you directly</span>
+                            </div>
+                        )}
                     </div>
 
                     {error && <div className="error-message-profile">{error}</div>}
@@ -168,7 +214,7 @@ export default function Profile({ session }) {
                         <button
                             className="update-btn"
                             onClick={handleUpdate}
-                            disabled={isSaving || isSigningOut || (fullName === user.user_metadata?.full_name && upiId === originalUpiId)}
+                            disabled={isSaving || isSigningOut || (fullName === user.user_metadata?.full_name && upiId === originalUpiId && country === originalCountry)}
                         >
                             {isSaving ? 'Saving...' : 'Save Changes'}
                         </button>

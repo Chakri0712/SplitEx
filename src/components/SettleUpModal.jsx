@@ -47,6 +47,10 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
         }
     }
 
+    // Derived User Country
+    const userCountry = members.find(m => m.id === currentUser.id)?.country || 'USA'
+    const isUpiEnabled = userCountry === 'IND' || userCountry === 'IN'
+
     // Settlement Flow State
     const [showUtrPrompt, setShowUtrPrompt] = useState(false)
     const [utrReference, setUtrReference] = useState('')
@@ -420,8 +424,8 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
         }
     }
 
-    // Check if UPI is available (only for INR)
-    const isUpiAvailable = group.currency === 'INR'
+    // Check if UPI is available (only for INR AND User is in India)
+    const isUpiAvailable = group.currency === 'INR' && isUpiEnabled
 
     // UTR Prompt Screen
     if (showUtrPrompt) {
@@ -545,7 +549,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                         <div className="amount-group">
                             <label>Amount</label>
                             <div className="currency-input">
-                                <span className="currency-symbol">{group.currency === 'USD' ? '$' : group.currency === 'EUR' ? '€' : group.currency === 'INR' ? '₹' : group.currency}</span>
+                                <span className="currency-symbol">{group.currency === 'USD' || group.currency === 'CAD' ? '$' : group.currency === 'EUR' ? '€' : group.currency === 'INR' ? '₹' : group.currency}</span>
                                 <input
                                     type="text"
                                     inputMode="decimal"
@@ -637,7 +641,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                             )}
 
                             {/* Prompt for payer to add UPI ID */}
-                            {!members.find(m => m.id === currentUser.id)?.upiId && (
+                            {isUpiAvailable && !members.find(m => m.id === currentUser.id)?.upiId && (
                                 <div style={{
                                     textAlign: 'center',
                                     marginTop: '12px',

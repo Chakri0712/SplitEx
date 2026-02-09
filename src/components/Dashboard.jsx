@@ -56,17 +56,20 @@ export default function Dashboard({ session, onGroupSelect }) {
             return
         }
 
-        // Fetch user's UPI ID
+        // Fetch user's UPI ID and Country
         const { data, error } = await supabase
             .from('profiles')
-            .select('upi_id')
+            .select('upi_id, country')
             .eq('id', userId)
             .single()
 
         if (!error && data) {
             setUserUpiId(data.upi_id)
-            // Show prompt only if no UPI ID
-            setShowUpiPrompt(!data.upi_id)
+            // Show prompt only if no UPI ID AND Country is India (or not set, assuming fallback)
+            // Let's be strict: Only if Country is explicitly India or null (legacy users might want it?)
+            // Plan said: Only if country === 'IN'
+            const isIndia = data.country === 'IND' || data.country === 'IN'
+            setShowUpiPrompt(!data.upi_id && isIndia)
         }
     }
 

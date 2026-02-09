@@ -120,7 +120,7 @@ export default function GroupDetails({ session, group, onBack }) {
             // Fetch profiles for everyone involved
             const { data: profilesData, error: profilesError } = await supabase
                 .from('profiles')
-                .select('id, full_name, avatar_url, upi_id')
+                .select('id, full_name, avatar_url, upi_id, country')
                 .in('id', uniqueUserIds)
 
             if (profilesError) throw profilesError
@@ -144,6 +144,7 @@ export default function GroupDetails({ session, group, onBack }) {
                     name: (profile?.full_name || 'Unknown') + (!isCurrent ? ' (Left)' : ''),
                     avatar: profile?.avatar_url,
                     upiId: profile?.upi_id || null,
+                    country: profile?.country || 'US',
                     isCurrent: isCurrent
                 }
             })
@@ -377,7 +378,7 @@ export default function GroupDetails({ session, group, onBack }) {
                                                             </div>
                                                         </div>
                                                         <span className="debt-amount negative">
-                                                            {currentGroup.currency === 'USD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : ''}
+                                                            {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
                                                             {amountIOwe.toFixed(2)}
                                                         </span>
                                                     </div>
@@ -394,7 +395,7 @@ export default function GroupDetails({ session, group, onBack }) {
                                                             </div>
                                                         </div>
                                                         <span className="debt-amount positive">
-                                                            {currentGroup.currency === 'USD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : ''}
+                                                            {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
                                                             {amountTheyOwe.toFixed(2)}
                                                         </span>
                                                     </div>
@@ -461,7 +462,7 @@ export default function GroupDetails({ session, group, onBack }) {
                                         </div>
                                         <div className="expense-amount">
                                             <span className="amount">
-                                                {currentGroup.currency === 'USD' ? '$' :
+                                                {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' :
                                                     currentGroup.currency === 'EUR' ? '€' :
                                                         currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
                                                 {expense.amount}
@@ -504,7 +505,7 @@ export default function GroupDetails({ session, group, onBack }) {
                             <div className="total-card">
                                 <h3>Total Group Expenses</h3>
                                 <div className="total-amount">
-                                    {currentGroup.currency === 'USD' ? '$' :
+                                    {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' :
                                         currentGroup.currency === 'EUR' ? '€' :
                                             currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
                                     {expenses
@@ -536,7 +537,7 @@ export default function GroupDetails({ session, group, onBack }) {
                                                     <span className="member-percentage">{member.percentage.toFixed(1)}%</span>
                                                 </div>
                                                 <div className="member-amount">
-                                                    {currentGroup.currency === 'USD' ? '$' :
+                                                    {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' :
                                                         currentGroup.currency === 'EUR' ? '€' :
                                                             currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
                                                     {member.spent.toFixed(2)}
@@ -602,6 +603,7 @@ export default function GroupDetails({ session, group, onBack }) {
                     expense={selectedSettlement}
                     currentUser={session.user}
                     members={members}
+                    group={currentGroup}
                     onClose={() => setSelectedSettlement(null)}
                     onUpdate={handleDataChanged}
                 />

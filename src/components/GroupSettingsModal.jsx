@@ -292,13 +292,14 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                             <select
                                 value={currency}
                                 onChange={(e) => setCurrency(e.target.value)}
-                                disabled={expenseCount > 0}
+                                disabled={true}
                                 className="currency-select"
                             >
                                 <option value="USD">USD - US Dollar</option>
                                 <option value="INR">INR - Indian Rupee</option>
                                 <option value="EUR">EUR - Euro</option>
                                 <option value="GBP">GBP - British Pound</option>
+                                <option value="CAD">CAD - Canadian Dollar</option>
                             </select>
                             {expenseCount > 0 && (
                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>

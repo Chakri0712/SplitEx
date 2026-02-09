@@ -33,6 +33,7 @@ create table if not exists profiles (
   full_name text,
   avatar_url text,
   upi_id text,
+  country text default 'US',
   updated_at timestamp with time zone
 );
 
