@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Users, LogOut, ExternalLink, UserPlus, User } from 'lucide-react'
 import CreateGroupModal from './CreateGroupModal'
 import JoinGroupModal from './JoinGroupModal'
@@ -10,6 +10,7 @@ import './Dashboard.css'
 
 export default function Dashboard({ session, onGroupSelect }) {
     const navigate = useNavigate()
+    const location = useLocation()
     const [groups, setGroups] = useState([])
     const [loading, setLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -24,7 +25,7 @@ export default function Dashboard({ session, onGroupSelect }) {
     useEffect(() => {
         fetchGroups()
         checkUpiPrompt()
-    }, [])
+    }, [location.key])
 
     const fetchGroups = async () => {
         try {
