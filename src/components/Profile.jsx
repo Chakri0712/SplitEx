@@ -174,7 +174,6 @@ export default function Profile({ session }) {
                                     style={{
                                         background: 'transparent',
                                         width: '100%',
-                                        color: 'var(--text-primary)', // Text color from theme
                                         cursor: 'pointer'
                                     }}
                                 >

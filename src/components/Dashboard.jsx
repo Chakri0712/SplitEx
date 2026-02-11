@@ -18,6 +18,7 @@ export default function Dashboard({ session, onGroupSelect }) {
 
     // UPI Prompt states
     const [userUpiId, setUserUpiId] = useState(null)
+    const [userCountry, setUserCountry] = useState(null)
     const [showUpiPrompt, setShowUpiPrompt] = useState(false)
 
     useEffect(() => {
@@ -47,16 +48,8 @@ export default function Dashboard({ session, onGroupSelect }) {
 
     const checkUpiPrompt = async () => {
         const userId = session.user.id
-        const dismissKey = `upi_prompt_dismissed_${userId}`
 
-        // Check if user dismissed the prompt
-        const isDismissed = localStorage.getItem(dismissKey)
-        if (isDismissed) {
-            setShowUpiPrompt(false)
-            return
-        }
-
-        // Fetch user's UPI ID and Country
+        // Fetch user's UPI ID and Country FIRST
         const { data, error } = await supabase
             .from('profiles')
             .select('upi_id, country')
@@ -65,11 +58,25 @@ export default function Dashboard({ session, onGroupSelect }) {
 
         if (!error && data) {
             setUserUpiId(data.upi_id)
-            // Show prompt only if no UPI ID AND Country is India (or not set, assuming fallback)
-            // Let's be strict: Only if Country is explicitly India or null (legacy users might want it?)
-            // Plan said: Only if country === 'IN'
+            setUserCountry(data.country)
+
+            // Logic for Red Dot and Banner
+            // Red Dot depends on: No UPI ID AND Country is India
+            // Banner depends on: Red Dot condition AND Not dismissed
+
             const isIndia = data.country === 'IND' || data.country === 'IN'
-            setShowUpiPrompt(!data.upi_id && isIndia)
+            const missingUpi = !data.upi_id
+
+            if (missingUpi && isIndia) {
+                // Check dismissal for Banner only
+                const dismissKey = `upi_prompt_dismissed_${userId}`
+                const isDismissed = localStorage.getItem(dismissKey)
+                if (!isDismissed) {
+                    setShowUpiPrompt(true)
+                }
+            } else {
+                setShowUpiPrompt(false)
+            }
         }
     }
 
@@ -105,7 +112,7 @@ export default function Dashboard({ session, onGroupSelect }) {
                         <div className="header-avatar-placeholder">
                             <User size={20} />
                         </div>
-                        {!userUpiId && (
+                        {!userUpiId && (userCountry === 'IND' || userCountry === 'IN') && (
                             <span className="profile-badge"></span>
                         )}
                     </button>

@@ -33,7 +33,7 @@ create table if not exists profiles (
   full_name text,
   avatar_url text,
   upi_id text,
-  country text default 'US',
+  country text default 'IND',
   updated_at timestamp with time zone
 );
 
@@ -209,7 +209,7 @@ create trigger on_auth_user_created
 
 -- 7. FUNCTIONS
 create or replace function join_group_by_code(invite_code_input text)
-returns json hiding password
+returns json
 language plpgsql
 security definer
 as $$

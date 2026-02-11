@@ -171,15 +171,30 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
 
             if (settError) throw settError
 
-            // Calculate total of ALREADY CONFIRMED settlements (excluding current one)
+            // Calculate total of ALREADY CONFIRMED settlements (Payer -> Receiver)
+            // AND total reversed settlements (Receiver -> Payer) to offset the debt
             let totalConfirmedSettlements = 0
-            settlements?.forEach(s => {
-                // Skip the current settlement being confirmed
-                if (s.expense_id === expense.id) return
+            let totalReverseSettlements = 0
 
+            settlements?.forEach(s => {
                 const settleExp = allExpenses.find(e => e.id === s.expense_id)
-                if (settleExp) {
-                    totalConfirmedSettlements += parseFloat(settleExp.amount)
+                if (!settleExp) return
+
+                // Check direction based on who paid the settlement
+                if (settleExp.paid_by === payer) {
+                    // Payer -> Receiver
+                    // Verification: ensure this settlement was intended for receiver
+                    const split = allSplits.find(sp => sp.expense_id === s.expense_id && sp.user_id === receiverId)
+                    if (split && s.expense_id !== expense.id) { // Exclude current one
+                        totalConfirmedSettlements += parseFloat(settleExp.amount)
+                    }
+                } else if (settleExp.paid_by === receiverId) {
+                    // Receiver -> Payer (Reverse Settlement)
+                    // These act as "loans" or "overpayments" from Receiver to Payer, increasing what Payer owes.
+                    const split = allSplits.find(sp => sp.expense_id === s.expense_id && sp.user_id === payer)
+                    if (split) {
+                        totalReverseSettlements += parseFloat(settleExp.amount)
+                    }
                 }
             })
 
@@ -187,15 +202,23 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
             const currentSettlementAmount = parseFloat(expense.amount)
             const totalAfterConfirming = totalConfirmedSettlements + currentSettlementAmount
 
-            // Check if confirming this would exceed actual debt
-            if (totalAfterConfirming > actualDebt + 0.01) {
+            // Check if confirming this would exceed actual debt + reverse settlements
+            // Logic: Payer can pay up to (Net Debt + Amount Receiver paid to Payer)
+            const allowedPayment = actualDebt + totalReverseSettlements
+
+            if (totalAfterConfirming > allowedPayment + 0.01) {
                 const currency = group?.currency || 'USD'
-                const excess = totalAfterConfirming - actualDebt
+
+                // If actualDebt is negative (Receiver owes Payer), allowedPayment might be negative or small.
+                // In that case, any payment is an overpayment.
+
+                const excess = totalAfterConfirming - allowedPayment
 
                 if (!confirm(
-                    `Warning: Confirming this settlement will result in ${currency} ${excess.toFixed(2)} more than you're actually owed (${currency} ${actualDebt.toFixed(2)}).\n\n` +
+                    `Warning: Confirming this settlement will result in ${currency} ${excess.toFixed(2)} more than you're actually owed.\n` +
+                    `(${currency} ${totalAfterConfirming.toFixed(2)} vs ${currency} ${allowedPayment.toFixed(2)})\n\n` +
                     `Total settlements (after confirming): ${currency} ${totalAfterConfirming.toFixed(2)}\n` +
-                    `Actual debt: ${currency} ${actualDebt.toFixed(2)}\n\n` +
+                    `Net Debt + Reverse Settlements: ${currency} ${allowedPayment.toFixed(2)}\n\n` +
                     `Do you still want to continue?`
                 )) {
                     setUpdating(false)
