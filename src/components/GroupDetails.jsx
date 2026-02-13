@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
+import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info, HandCoins, ArrowRight } from 'lucide-react'
 import AddExpenseModal from './AddExpenseModal'
 import SettleUpModal from './SettleUpModal'
@@ -17,8 +18,22 @@ export default function GroupDetails({ session, group, onBack }) {
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
     const [balance, setBalance] = useState(0)
     const [currentGroup, setCurrentGroup] = useState(group)
-    const [activeTab, setActiveTab] = useState('expenses')
-    const [expenseFilter, setExpenseFilter] = useState('expenses')
+    const [searchParams, setSearchParams] = useSearchParams()
+
+    // Derive active tab from URL, default to 'expenses'
+    const activeTab = searchParams.get('tab') || 'expenses'
+
+    // Helper to update tab
+    const setActiveTab = (tab) => {
+        setSearchParams({ tab })
+    }
+
+    const [expenseFilter, setExpenseFilter] = useState(searchParams.get('filter') || 'expenses')
+
+    const updateExpenseFilter = (filter) => {
+        setExpenseFilter(filter)
+        setSearchParams({ tab: activeTab, filter })
+    }
     const [members, setMembers] = useState([])
     const [memberSpending, setMemberSpending] = useState([])
     const [debts, setDebts] = useState({}) // { [payerId]: { [receiverId]: amount } }
@@ -333,7 +348,7 @@ export default function GroupDetails({ session, group, onBack }) {
                         <select
                             className="expense-filter-dropdown"
                             value={expenseFilter}
-                            onChange={(e) => setExpenseFilter(e.target.value)}
+                            onChange={(e) => updateExpenseFilter(e.target.value)}
                         >
                             <option value="expenses">Expenses</option>
                             <option value="settlements">Settlements</option>

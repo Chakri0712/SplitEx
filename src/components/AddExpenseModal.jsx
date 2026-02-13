@@ -31,10 +31,6 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
         }
     }
 
-    // useEffect(() => {
-    //     fetchMembers()
-    // }, [])
-
     // Load Expense Data & Splits for Editing
     useEffect(() => {
         if (expenseToEdit && members.length > 0) {
@@ -46,8 +42,6 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
         }
     }, [expenseToEdit, members])
 
-    // const fetchMembers = async () => { ... } // Removed
-
     const fetchExistingSplits = async (expenseId) => {
         const { data } = await supabase
             .from('expense_splits')
@@ -56,10 +50,8 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
 
         if (data && data.length > 0) {
             // Check if equal
-            const firstAmount = data[0].owe_amount
-            const count = data.length
             const total = parseFloat(expenseToEdit.amount) || 0
-            const expectedShare = total / members.length // Assuming all members for equal check
+            const expectedShare = total / members.length
 
             // Heuristic: If count matches members AND amounts are equal
             const isAllEqual = data.length === members.length && data.every(s => Math.abs(s.owe_amount - expectedShare) < 0.05)
@@ -70,24 +62,37 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                 setSplitMode('UNEQUAL')
                 const splitsMap = {}
                 data.forEach(s => {
-                    splitsMap[s.user_id] = s.owe_amount
+                    // Store as string for formatting
+                    splitsMap[s.user_id] = s.owe_amount.toFixed(2)
                 })
                 setCustomSplits(splitsMap)
+
+                // Initialize involved/locked based on existing splits
+                const involved = new Set()
+                data.forEach(s => {
+                    if (s.owe_amount > 0) involved.add(s.user_id)
+                })
+                setInvolvedMembers(involved)
             }
         }
     }
 
     // State for smart splitting
     const [lockedMembers, setLockedMembers] = useState(new Set())
+    const [involvedMembers, setInvolvedMembers] = useState(new Set())
 
     const handleCustomSplitChange = (userId, value) => {
-        const newVal = parseFloat(value) || 0
+        // Strict 2 decimal place validation for input
+        if (value && !/^\d*\.?\d{0,2}$/.test(value)) {
+            return // Ignore invalid input
+        }
+
+        // Allow raw input update for smooth typing (e.g. "25.")
+        const newSplits = { ...customSplits, [userId]: value }
+
         const total = parseFloat(amount) || 0
 
-        // 1. Update the manual entry
-        const newSplits = { ...customSplits, [userId]: newVal }
-
-        // 2. Add to locked set
+        // 1. Update the manual entry & Add to locked set
         const newLocked = new Set(lockedMembers)
         newLocked.add(userId)
         setLockedMembers(newLocked)
@@ -97,20 +102,21 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
         let lockedSum = 0
         members.forEach(m => {
             if (newLocked.has(m.id)) {
-                lockedSum += newSplits[m.id] || 0
+                // Use parsed values for sum
+                const val = parseFloat(newSplits[m.id]) || 0
+                lockedSum += val
             }
         })
 
-        const remaining = total - lockedSum
+        // Prevent negative remaining
+        const remaining = Math.max(0, total - lockedSum)
 
         // 4. Distribute remaining among unlocked members
-        const unlockedMembers = members.filter(m => !newLocked.has(m.id))
+        const unlockedMembers = members.filter(m => !newLocked.has(m.id) && involvedMembers.has(m.id))
 
         if (unlockedMembers.length > 0) {
-            const share = Math.max(0, remaining / unlockedMembers.length) // Prevent negative auto-fill? Or allow it? strict math says allow.
-            // Actually, keep it simple math. If negative, let it be negative, validation will catch.
-            // But usually nice to truncate to 2 decimals.
-            const shareFixed = parseFloat(share.toFixed(2))
+            const share = Math.max(0, remaining / unlockedMembers.length)
+            const shareFixed = share.toFixed(2) // STRING
 
             // Distribute to all unlocked
             unlockedMembers.forEach(m => {
@@ -119,13 +125,25 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
 
             // Fix rounding error on the last unlocked member
             if (unlockedMembers.length > 0) {
-                // Recalculate current sum
-                const currentSum = Object.values(newSplits).reduce((a, b) => a + b, 0)
+                let currentSum = 0
+                // We need to sum the splits of INVOLVED members to check against TOTAL
+                members.forEach(m => {
+                    if (involvedMembers.has(m.id)) {
+                        currentSum += parseFloat(newSplits[m.id]) || 0
+                    }
+                })
+
+                // If we are strictly distributing TOTAL (and assuming all involved covers total)
+                // But lockedSum might be < Total.
+
                 const diff = total - currentSum
 
                 if (Math.abs(diff) > 0.001) {
                     const lastMember = unlockedMembers[unlockedMembers.length - 1]
-                    newSplits[lastMember.id] = parseFloat((newSplits[lastMember.id] + diff).toFixed(2))
+                    const lastVal = parseFloat(newSplits[lastMember.id]) || 0
+                    // Prevent negative adjustment
+                    const newVal = Math.max(0, lastVal + diff)
+                    newSplits[lastMember.id] = newVal.toFixed(2)
                 }
             }
         }
@@ -155,7 +173,7 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
 
         // 3. Validate Unequal Splits
         if (splitMode === 'UNEQUAL') {
-            const currentTotal = Object.values(customSplits).reduce((a, b) => a + b, 0)
+            const currentTotal = Object.values(customSplits).reduce((a, b) => a + (parseFloat(b) || 0), 0)
             if (Math.abs(currentTotal - totalAmount) > 0.1) {
                 setError(`Split amounts must equal the total amount (${totalAmount}). Current total: ${currentTotal.toFixed(2)}`)
                 return
@@ -163,7 +181,7 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
 
             // Validate individual split inputs
             for (const userId in customSplits) {
-                const splitVal = customSplits[userId];
+                const splitVal = parseFloat(customSplits[userId]) || 0;
                 // Check for negative split values
                 if (splitVal < 0) {
                     setError("Split amounts cannot be negative.")
@@ -237,7 +255,7 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                 splits = members.map(member => ({
                     expense_id: expenseId,
                     user_id: member.id,
-                    owe_amount: customSplits[member.id] || 0
+                    owe_amount: parseFloat(customSplits[member.id]) || 0
                 }))
             }
 
@@ -267,10 +285,7 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
     // Calculation for UI
     const totalAmount = parseFloat(amount) || 0
     const equalShare = members.length > 0 ? (totalAmount / members.length).toFixed(2) : '0.00'
-
-    // Validation Calc for Amount Mode
-    const currentCustomTotal = Object.values(customSplits).reduce((a, b) => a + b, 0)
-    const remainingSplit = totalAmount - currentCustomTotal
+    const isZeroAmount = totalAmount <= 0
 
     return (
         <div className="modal-overlay">
@@ -342,7 +357,12 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                             <button
                                 type="button"
                                 className={`toggle-btn ${splitMode === 'EQUAL' ? 'active' : ''}`}
-                                onClick={() => setSplitMode('EQUAL')}
+                                onClick={() => {
+                                    setSplitMode('EQUAL')
+                                    setCustomSplits({})
+                                    setInvolvedMembers(new Set())
+                                    setLockedMembers(new Set())
+                                }}
                             >
                                 Split Equally
                             </button>
@@ -351,24 +371,44 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                                 className={`toggle-btn ${splitMode === 'UNEQUAL' ? 'active' : ''}`}
                                 onClick={() => {
                                     setSplitMode('UNEQUAL')
-                                    // Initialize with equal splits for better UX
-                                    if (Object.keys(customSplits).length === 0 && amount) {
-                                        const total = parseFloat(amount) || 0
-                                        const share = parseFloat((total / members.length).toFixed(2))
+                                    const total = parseFloat(amount) || 0
+
+                                    // If total is 0, just init everyone as involved with 0
+                                    if (total === 0) {
                                         const initialSplits = {}
-                                        members.forEach(m => initialSplits[m.id] = share)
-
-                                        // Fix rounding for last person
-                                        const currentSum = members.length * share
-                                        const diff = parseFloat((total - currentSum).toFixed(2))
-                                        if (diff !== 0 && members.length > 0) {
-                                            const lastId = members[members.length - 1].id
-                                            initialSplits[lastId] = parseFloat((share + diff).toFixed(2))
-                                        }
-
+                                        const allInvolved = new Set()
+                                        members.forEach(m => {
+                                            initialSplits[m.id] = "0.00"
+                                            allInvolved.add(m.id)
+                                        })
                                         setCustomSplits(initialSplits)
-                                        setLockedMembers(new Set()) // Reset locks logic
+                                        setInvolvedMembers(allInvolved)
+                                        setLockedMembers(new Set())
+                                        return
                                     }
+
+                                    // Distribute equally initially
+                                    const share = (total / members.length).toFixed(2) // STRING
+                                    const initialSplits = {}
+                                    const allInvolved = new Set()
+
+                                    members.forEach(m => {
+                                        initialSplits[m.id] = share
+                                        allInvolved.add(m.id)
+                                    })
+
+                                    // Fix rounding for last person
+                                    const currentSum = members.length * parseFloat(share)
+                                    const diff = total - currentSum
+                                    if (Math.abs(diff) > 0.001 && members.length > 0) {
+                                        const lastId = members[members.length - 1].id
+                                        const lastVal = parseFloat(share) + diff
+                                        initialSplits[lastId] = lastVal.toFixed(2)
+                                    }
+
+                                    setCustomSplits(initialSplits)
+                                    setInvolvedMembers(allInvolved)
+                                    setLockedMembers(new Set()) // Reset locks logic
                                 }}
                             >
                                 Split Unequally
@@ -376,41 +416,177 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                         </div>
 
                         {splitMode === 'UNEQUAL' && (
-                            <div className={`split-validation ${Math.abs(remainingSplit) < 0.1 ? 'success' : 'error'}`}>
-                                {Math.abs(remainingSplit) < 0.1
-                                    ? '✅ Matches Total'
-                                    : `Remaining: ${remainingSplit.toFixed(2)}`}
+                            <div className="member-split-row select-all-row" style={{ borderBottom: '1px dashed var(--border-color)', marginBottom: '8px', paddingBottom: '8px' }}>
+                                <div className="split-left">
+                                    <input
+                                        type="checkbox"
+                                        checked={involvedMembers.size === members.length && members.length > 0}
+                                        disabled={isZeroAmount}
+                                        onChange={(e) => {
+                                            const isChecked = e.target.checked
+                                            const total = parseFloat(amount) || 0
+
+                                            if (isChecked) {
+                                                // Select All: Re-distribute equally among all
+                                                const newInvolved = new Set(members.map(m => m.id))
+                                                const share = (total / members.length).toFixed(2) // STRING
+                                                const newSplits = {}
+
+                                                members.forEach(m => {
+                                                    newSplits[m.id] = share
+                                                })
+
+                                                // Fix rounding
+                                                let currentSum = members.length * parseFloat(share)
+                                                // Using simple math can have floating point issues, let's just sum it properly
+                                                // actually simpler: currentSum is approx total
+
+                                                const diff = total - currentSum
+                                                if (Math.abs(diff) > 0.001 && members.length > 0) {
+                                                    const lastId = members[members.length - 1].id
+                                                    const lastVal = parseFloat(share) + diff
+                                                    newSplits[lastId] = lastVal.toFixed(2)
+                                                }
+
+                                                setCustomSplits(newSplits)
+                                                setInvolvedMembers(newInvolved)
+                                                setLockedMembers(new Set())
+                                            } else {
+                                                // Deselect All: Clear everything
+                                                const newSplits = {}
+                                                members.forEach(m => newSplits[m.id] = "0.00")
+                                                setCustomSplits(newSplits)
+                                                setInvolvedMembers(new Set())
+                                                setLockedMembers(new Set())
+                                            }
+                                        }}
+                                        style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer', marginRight: '12px' }}
+                                    />
+                                    <span className="member-name-split" style={{ fontWeight: 600 }}>Select All</span>
+                                </div>
+                                <div className="split-right">
+                                    {/* Removed Validation Message */}
+                                </div>
                             </div>
                         )}
 
                         <div className="members-split-list">
-                            {members.map(member => (
-                                <div key={member.id} className="member-split-row">
-                                    <div className="split-left">
-                                        {/* Avatar or Icon could go here */}
-                                        <span className="member-name-split">
-                                            {member.id === currentUser.id ? 'You' : member.name}
-                                        </span>
-                                    </div>
-                                    <div className="split-right">
-                                        {splitMode === 'EQUAL' ? (
-                                            <span className="share-amount">
-                                                {equalShare}
+                            {members.map(member => {
+                                const isChecked = involvedMembers.has(member.id)
+
+                                return (
+                                    <div key={member.id} className="member-split-row">
+                                        <div className="split-left">
+                                            {/* Checkbox for inclusion */}
+                                            {splitMode === 'UNEQUAL' && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    disabled={isZeroAmount}
+                                                    onChange={(e) => {
+                                                        const isChecked = e.target.checked
+                                                        const userId = member.id
+                                                        const total = parseFloat(amount) || 0
+
+                                                        let newInvolved = new Set(involvedMembers)
+                                                        let newLocked = new Set(lockedMembers)
+                                                        let newSplits = { ...customSplits }
+
+                                                        if (!isChecked) {
+                                                            // Uncheck: Remove from involved, set to 0, unlock
+                                                            newInvolved.delete(userId)
+                                                            newSplits[userId] = "0.00"
+                                                            newLocked.delete(userId)
+                                                        } else {
+                                                            // Check: Add to involved, unlock (so it takes a share)
+                                                            newInvolved.add(userId)
+                                                            newLocked.delete(userId)
+                                                        }
+
+                                                        setInvolvedMembers(newInvolved)
+                                                        setLockedMembers(newLocked)
+
+                                                        // REDISTRIBUTE among NEW involved members
+                                                        // 1. Calculate sum of LOCKED members who are also INVOLVED
+                                                        let lockedSum = 0
+                                                        members.forEach(m => {
+                                                            if (newInvolved.has(m.id) && newLocked.has(m.id)) {
+                                                                lockedSum += parseFloat(newSplits[m.id]) || 0
+                                                            }
+                                                        })
+
+                                                        const remaining = Math.max(0, total - lockedSum)
+
+                                                        // 2. Identify Unlocked & Involved members
+                                                        const activeUnlockedMembers = members.filter(m => newInvolved.has(m.id) && !newLocked.has(m.id))
+
+                                                        if (activeUnlockedMembers.length > 0) {
+                                                            const share = Math.max(0, remaining / activeUnlockedMembers.length)
+                                                            const shareFixed = share.toFixed(2)
+
+                                                            activeUnlockedMembers.forEach(m => {
+                                                                newSplits[m.id] = shareFixed
+                                                            })
+
+                                                            // Fix rounding
+                                                            let currentSum = 0
+                                                            // Sum locked involved
+                                                            members.forEach(m => {
+                                                                if (newInvolved.has(m.id) && newLocked.has(m.id)) {
+                                                                    currentSum += parseFloat(newSplits[m.id]) || 0
+                                                                }
+                                                            })
+                                                            // Sum unlocked involved
+                                                            activeUnlockedMembers.forEach(m => {
+                                                                currentSum += parseFloat(newSplits[m.id]) || 0
+                                                            })
+
+                                                            const diff = total - currentSum
+                                                            if (Math.abs(diff) > 0.001) {
+                                                                const lastMember = activeUnlockedMembers[activeUnlockedMembers.length - 1]
+                                                                const lastVal = parseFloat(newSplits[lastMember.id]) || 0
+                                                                newSplits[lastMember.id] = (Math.max(0, lastVal + diff)).toFixed(2)
+                                                            }
+                                                        }
+
+                                                        setCustomSplits(newSplits)
+                                                    }}
+                                                    style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer', marginRight: '12px' }}
+                                                />
+                                            )}
+                                            {/* Avatar or Icon could go here */}
+                                            <span className={`member-name-split ${(!isChecked || isZeroAmount) && splitMode === 'UNEQUAL' ? 'unchecked' : ''}`}>
+                                                {member.id === currentUser.id ? 'You' : member.name}
                                             </span>
-                                        ) : (
-                                            <input
-                                                type="number"
-                                                inputMode="decimal"
-                                                placeholder="0.00"
-                                                value={customSplits[member.id] || ''}
-                                                onChange={(e) => handleCustomSplitChange(member.id, e.target.value)}
-                                                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
-                                                className="custom-amount-input"
-                                            />
-                                        )}
+                                        </div>
+                                        <div className="split-right">
+                                            {splitMode === 'EQUAL' ? (
+                                                <span className="share-amount">
+                                                    {equalShare}
+                                                </span>
+                                            ) : (
+                                                <input
+                                                    type="number"
+                                                    inputMode="decimal"
+                                                    step="0.01"
+                                                    placeholder="0.00"
+                                                    value={customSplits[member.id] || ''}
+                                                    onChange={(e) => handleCustomSplitChange(member.id, e.target.value)}
+                                                    onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
+                                                    onBlur={(e) => {
+                                                        const val = parseFloat(e.target.value)
+                                                        if (!isNaN(val)) {
+                                                            handleCustomSplitChange(member.id, val.toFixed(2))
+                                                        }
+                                                    }}
+                                                    disabled={!isChecked || isZeroAmount}
+                                                    className={`custom-amount-input ${(!isChecked || isZeroAmount) ? 'disabled' : ''}`}
+                                                />
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     </div>
 

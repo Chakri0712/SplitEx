@@ -10,16 +10,20 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    padding: 1rem;
+    padding: 0.5rem;
+    /* Reduced padding */
     backdrop-filter: blur(4px);
 }
 
 .modal-card {
     background: var(--bg-card);
-    padding: 1rem;
-    border-radius: var(--radius-lg);
+    padding: 16px;
+    /* Reduced from 1rem standard/20px */
+    border-radius: 16px;
+    /* Slightly tighter radius */
     width: 100%;
-    max-width: 400px;
+    max-width: 380px;
+    /* Reduced width for compactness */
     max-height: 90vh;
     overflow-y: auto;
     position: relative;
@@ -27,17 +31,95 @@
     animation: modalSlideUp 0.3s ease-out;
 }
 
-/* ... */
+@keyframes modalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
 
-.form-group {
-    margin-bottom: 0.6rem;
-    /* Very compact */
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-/* ... */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    /* Reduced */
+}
+
+.modal-header h2 {
+    font-size: 1.1rem;
+    /* Reduced */
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.close-btn:hover {
+    background: var(--bg-input);
+    color: var(--text-primary);
+}
+
+.modal-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group {
+    margin-bottom: 0.5rem;
+    /* Reduced */
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.8rem;
+    /* Reduced */
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    /* Reduced */
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 8px;
+    /* Reduced */
+    border-radius: var(--radius-md);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    /* Reduced */
+    transition: all 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.1);
+}
 
 .amount-input {
-    font-size: 1.8rem !important;
+    font-size: 1.5rem !important;
+    /* Reduced from 1.8rem */
     font-weight: 800;
     color: var(--primary);
     text-align: center;
@@ -45,39 +127,53 @@
     border: none !important;
     border-bottom: 2px solid var(--border-color) !important;
     border-radius: 0 !important;
-    padding: 0.2rem !important;
-    margin-bottom: 0.5rem;
+    padding: 0.1rem !important;
+    /* Reduced */
+    margin-bottom: 0.25rem;
+    /* Reduced */
 }
 
-/* ... */
+.amount-input:focus {
+    border-color: var(--primary) !important;
+    box-shadow: none !important;
+}
 
 .payer-select {
-    padding: 8px;
+    padding: 6px;
+    /* Reduced */
     /* Native compact */
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    /* Reduced */
     background: var(--bg-input);
     color: var(--text-primary);
     width: 100%;
     outline: none;
 }
 
-/* ... */
+.error-banner {
+    font-size: 0.8rem;
+    padding: 8px;
+    margin-bottom: 0.75rem;
+}
 
 .create-btn {
     width: 100%;
     background: var(--primary);
     color: #0f172a;
-    padding: 10px;
+    padding: 8px;
+    /* Reduced */
     border-radius: var(--radius-md);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    /* Reduced */
     font-weight: 700;
     display: flex;
     justify-content: center;
     align-items: center;
     box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
+    /* Reduced */
 }
 
 .create-btn:hover {
@@ -107,12 +203,15 @@
 
 .delete-expense-btn {
     width: 100%;
-    margin-top: 0.75rem;
+    margin-top: 0.5rem;
+    /* Reduced */
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
-    padding: 10px;
+    padding: 8px;
+    /* Reduced */
     border-radius: var(--radius-md);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    /* Reduced */
     font-weight: 700;
     display: flex;
     justify-content: center;
@@ -132,9 +231,11 @@
 .split-mode-toggle {
     display: flex;
     background: var(--bg-input);
-    padding: 4px;
+    padding: 2px;
+    /* Reduced */
     border-radius: var(--radius-md);
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
+    /* Reduced */
     border: 1px solid var(--border-color);
 }
 
@@ -142,9 +243,11 @@
     flex: 1;
     background: transparent;
     border: none;
-    padding: 8px;
+    padding: 6px;
+    /* Reduced */
     border-radius: 6px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    /* Reduced */
     font-weight: 500;
     color: var(--text-secondary);
     cursor: pointer;
@@ -160,20 +263,25 @@
 
 /* Members List */
 .split-section-container {
-    margin-bottom: 20px;
-    padding-top: 0.5rem;
+    margin-bottom: 10px;
+    /* Reduced */
+    padding-top: 0.25rem;
+    /* Reduced */
 }
 
 .members-split-list {
-    max-height: 250px;
+    max-height: 200px;
+    /* Reduced height */
     overflow-y: auto;
     background: var(--bg-input);
     border-radius: var(--radius-md);
-    padding: 8px;
+    padding: 4px;
+    /* Reduced */
     border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
+    /* Reduced */
 }
 
 .member-split-row {
@@ -181,8 +289,10 @@
     justify-content: space-between;
     align-items: center;
     /* Critical for vertical alignment */
-    padding: 10px 12px;
-    border-radius: 8px;
+    padding: 6px 8px;
+    /* Reduced */
+    border-radius: 6px;
+    /* Reduced */
     background: var(--bg-card);
     border: 1px solid transparent;
     /* Prevent jump on hover */
@@ -202,14 +312,17 @@
 .split-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
+    /* Reduced */
     flex: 1;
     /* Allow name to take space */
 }
 
 .member-checkbox {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    /* Reduced */
+    height: 16px;
+    /* Reduced */
     accent-color: var(--primary);
     cursor: pointer;
     margin: 0;
@@ -217,13 +330,15 @@
 }
 
 .member-name-split {
-    font-size: 0.95rem;
+    font-size: 0.85rem;
+    /* Reduced */
     color: var(--text-primary);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
+    max-width: 110px;
+    /* Reduced */
     /* Truncate long names */
 }
 
@@ -231,28 +346,34 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    min-width: 80px;
+    min-width: 70px;
+    /* Reduced */
     /* Ensure space for amount */
 }
 
 .share-amount {
     font-weight: 600;
     color: var(--text-primary);
-    font-size: 0.95rem;
-    min-width: 60px;
+    font-size: 0.9rem;
+    /* Reduced */
+    min-width: 50px;
+    /* Reduced */
     /* Prevent jitter */
     text-align: right;
 }
 
 .custom-amount-input {
-    width: 80px;
-    padding: 6px;
+    width: 70px;
+    /* Reduced */
+    padding: 4px;
+    /* Reduced */
     border: 1px solid var(--border-color);
     background: var(--bg-card);
     color: var(--text-primary);
     border-radius: 4px;
     text-align: right;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    /* Reduced */
     font-weight: 600;
 }
 

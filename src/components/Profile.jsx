@@ -64,8 +64,9 @@ export default function Profile({ session }) {
         }
 
         // Basic UPI ID validation (optional field)
-        if (upiId && !/^[\w.]+@[\w]+$/.test(upiId.trim())) {
-            setError('Invalid UPI ID format (e.g., name@upi or 9876543210@ybl)')
+        // Relaxed regex to allow dots, dashes in both user and bank part
+        if (upiId && !/^[\w.-]+@[\w.-]+$/.test(upiId.trim())) {
+            setError('Invalid UPI ID format (e.g., name@upi, name@ok.axis)')
             return
         }
 
