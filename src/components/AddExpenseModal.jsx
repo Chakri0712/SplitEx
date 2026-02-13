@@ -220,7 +220,8 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                         paid_by: paidBy,
                         amount: totalAmount,
                         description: description.trim(),
-                        date: new Date(date).toISOString()
+                        date: new Date(date).toISOString(),
+                        created_by: currentUser.id
                     })
                     .select()
                     .single()
