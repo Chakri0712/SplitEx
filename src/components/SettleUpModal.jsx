@@ -70,12 +70,35 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
     const fetchDebts = async () => {
         const { data: expenses } = await supabase
             .from('expenses')
-            .select('id, paid_by, amount')
+            .select('id, paid_by, amount, category')
             .eq('group_id', group.id)
 
         if (!expenses || expenses.length === 0) return
 
-        const expenseIds = expenses.map(e => e.id)
+        // Get settlement statuses for settlement expenses
+        const settlementExpenses = expenses.filter(e => e.category === 'settlement')
+        let cancelledSettlementIds = []
+
+        if (settlementExpenses.length > 0) {
+            const { data: settlementDetails } = await supabase
+                .from('settlement_details')
+                .select('expense_id, settlement_status')
+                .in('expense_id', settlementExpenses.map(e => e.id))
+
+            // Filter out cancelled settlements
+            if (settlementDetails) {
+                cancelledSettlementIds = settlementDetails
+                    .filter(s => s.settlement_status === 'cancelled')
+                    .map(s => s.expense_id)
+            }
+        }
+
+        // Exclude cancelled settlements from debt calculation
+        const validExpenses = expenses.filter(e => !cancelledSettlementIds.includes(e.id))
+        const expenseIds = validExpenses.map(e => e.id)
+
+        if (expenseIds.length === 0) return
+
         const { data: splits } = await supabase
             .from('expense_splits')
             .select('expense_id, user_id, owe_amount')
@@ -85,7 +108,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
 
         const netBalances = {}
         splits.forEach(split => {
-            const expense = expenses.find(e => e.id === split.expense_id)
+            const expense = validExpenses.find(e => e.id === split.expense_id)
             if (!expense) return
             const payerId = expense.paid_by
             const debtorId = split.user_id
@@ -182,7 +205,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                 amount: parseFloat(amount),
                 description: finalDescription,
                 category: 'settlement',
-                date: new Date().toISOString()
+                created_by: currentUser.id
             })
             .select()
             .single()
@@ -230,7 +253,11 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
 
         const maxAmount = getMaxSettleAmount()
         if (parseFloat(amount) > maxAmount + 0.01) {
-            alert(`You can only settle up to ${group.currency} ${maxAmount.toFixed(2)} that you owe.`)
+            if (maxAmount <= 0) {
+                alert('You have pending settlements that cover your dues. Please ask the receiver to confirm or cancel them before creating a new settlement.')
+            } else {
+                alert(`You can only settle up to ${group.currency} ${maxAmount.toFixed(2)} that you owe.`)
+            }
             return
         }
 
@@ -262,7 +289,11 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
 
         const maxAmount = getMaxSettleAmount()
         if (parseFloat(amount) > maxAmount + 0.01) {
-            alert(`You can only settle up to ${group.currency} ${maxAmount.toFixed(2)} that you owe.`)
+            if (maxAmount <= 0) {
+                alert('You have pending settlements that cover your dues. Please ask the receiver to confirm or cancel them before creating a new settlement.')
+            } else {
+                alert(`You can only settle up to ${group.currency} ${maxAmount.toFixed(2)} that you owe.`)
+            }
             return
         }
 
@@ -388,8 +419,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                 .update({
                     paid_by: payer,
                     amount: parseFloat(amount),
-                    description: finalDescription,
-                    date: new Date().toISOString()
+                    description: finalDescription
                 })
                 .eq('id', expenseToEdit.id)
 

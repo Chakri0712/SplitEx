@@ -629,7 +629,7 @@ export default function GroupDetails({ session, group, onBack }) {
                     group={currentGroup}
                     currentUser={session.user}
                     members={members}
-                    onSettlementRecorded={handleDataChanged}
+                    onPaymentRecorded={handleDataChanged}
                     initialData={initialSettlementData}
                 />
             )}
