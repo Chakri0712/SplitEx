@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabaseClient'
 import { X, Loader2, ArrowRight, Trash2, Smartphone, HandCoins } from 'lucide-react'
+import PaymentMethodSelector from './PaymentMethodSelector'
 import './SettleUpModal.css'
 
 // export default function SettleUpModal({ group, currentUser, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
@@ -55,6 +56,8 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
     const [showUtrPrompt, setShowUtrPrompt] = useState(false)
     const [utrReference, setUtrReference] = useState('')
     const [pendingExpenseId, setPendingExpenseId] = useState(null)
+    const [showPaymentSelector, setShowPaymentSelector] = useState(false)
+    const [paymentDetails, setPaymentDetails] = useState(null)
 
     useEffect(() => {
         // fetchMembers() // removing call
@@ -303,24 +306,29 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
             await insertSettlementDetails(expenseId, 'upi', 'pending_utr')
             setPendingExpenseId(expenseId)
 
-            // Generate UPI Intent Link with receiver's UPI ID
+            // Generate Payment Details
             const upiAmount = parseFloat(amount).toFixed(2)
-            const note = encodeURIComponent(`SplitEx Settlement - ${group.name}`)
-            const payeeUpi = encodeURIComponent(receiverMember.upiId)
-            const upiLink = `upi://pay?pa=${payeeUpi}&am=${upiAmount}&cu=INR&tn=${note}`
+            const note = `SplitEx Settlement - ${group.name}` // Don't encode yet, selector handles it or final link does
+            // Actually, keep it simple for the selector props
+            const details = {
+                pa: receiverMember.upiId,
+                pn: receiverMember.full_name || 'Receiver',
+                am: upiAmount,
+                tr: expenseId, // Transaction Ref
+                tn: note,
+                cu: 'INR'
+            }
 
-            // Open UPI App
-            window.location.href = upiLink
+            setPaymentDetails(details)
+            setShowPaymentSelector(true)
+            setLoading(false)
 
-            // Show UTR prompt after a short delay (user comes back from UPI app)
-            setTimeout(() => {
-                setShowUtrPrompt(true)
-                setLoading(false)
-            }, 1000)
+            // Show UTR prompt in background so when they close selector/come back, it's there
+            setShowUtrPrompt(true)
 
         } catch (error) {
-            console.error('Error initiating UPI payment:', error)
-            alert('Failed to initiate UPI payment: ' + error.message)
+            console.error('Error settling up:', error)
+            alert('Failed to record settlement: ' + error.message)
             setLoading(false)
         }
     }
@@ -460,60 +468,69 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
     // UTR Prompt Screen
     if (showUtrPrompt) {
         return (
-            <div className="modal-overlay">
-                <div className="modal-card">
-                    <div className="modal-header">
-                        <h2>Enter UTR/Reference</h2>
-                        <button onClick={handleCancelUtr} className="close-btn">
-                            <X size={24} />
-                        </button>
-                    </div>
+            <>
+                <div className="modal-overlay">
+                    <div className="modal-card">
+                        <div className="modal-header">
+                            <h2>Enter UTR/Reference</h2>
+                            <button onClick={handleCancelUtr} className="close-btn">
+                                <X size={24} />
+                            </button>
+                        </div>
 
-                    <div className="modal-form" style={{ textAlign: 'center' }}>
-                        <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                            Enter the transaction reference number from your payment app to confirm this settlement.
-                        </p>
+                        <div className="modal-form" style={{ textAlign: 'center' }}>
+                            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                                Enter the transaction reference number from your payment app to confirm this settlement.
+                            </p>
 
-                        <input
-                            type="text"
-                            placeholder="e.g. 402345678912"
-                            value={utrReference}
-                            onChange={(e) => setUtrReference(e.target.value)}
-                            className="amount-input"
-                            style={{ textAlign: 'center', fontSize: '1.1rem' }}
-                            autoFocus
-                        />
+                            <input
+                                type="text"
+                                placeholder="e.g. 402345678912"
+                                value={utrReference}
+                                onChange={(e) => setUtrReference(e.target.value)}
+                                className="amount-input"
+                                style={{ textAlign: 'center', fontSize: '1.1rem' }}
+                                autoFocus
+                            />
 
-                        <button
-                            onClick={handleSaveUtr}
-                            disabled={loading}
-                            className="create-btn settle-btn"
-                            style={{ marginTop: '1.5rem' }}
-                        >
-                            {loading ? <Loader2 className="spin" /> : 'Save & Complete'}
-                        </button>
+                            <button
+                                onClick={handleSaveUtr}
+                                disabled={loading}
+                                className="create-btn settle-btn"
+                                style={{ marginTop: '1.5rem' }}
+                            >
+                                {loading ? <Loader2 className="spin" /> : 'Save & Complete'}
+                            </button>
 
-                        <button
-                            onClick={handleCancelUtr}
-                            disabled={loading}
-                            className="cancel-btn"
-                            style={{
-                                marginTop: '1rem',
-                                background: 'rgba(239, 68, 68, 0.1)',
-                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                color: '#ef4444',
-                                cursor: 'pointer',
-                                fontSize: '0.9rem',
-                                padding: '10px 16px',
-                                borderRadius: '10px',
-                                width: '100%'
-                            }}
-                        >
-                            Cancel Settlement
-                        </button>
+                            <button
+                                onClick={handleCancelUtr}
+                                disabled={loading}
+                                className="cancel-btn"
+                                style={{
+                                    marginTop: '1rem',
+                                    background: 'rgba(239, 68, 68, 0.1)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    color: '#ef4444',
+                                    cursor: 'pointer',
+                                    fontSize: '0.9rem',
+                                    padding: '10px 16px',
+                                    borderRadius: '10px',
+                                    width: '100%'
+                                }}
+                            >
+                                Cancel Settlement
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+                {showPaymentSelector && (
+                    <PaymentMethodSelector
+                        isOpen={showPaymentSelector}
+                        onClose={() => setShowPaymentSelector(false)}
+                        paymentDetails={paymentDetails}
+                    />
+                )}
+            </>
         )
     }
 
@@ -530,6 +547,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                 <form onSubmit={expenseToEdit ? handleUpdate : (e) => e.preventDefault()} className="modal-form">
 
                     <div className="settle-flow">
+                        {/* Payer and Receiver Selection */}
                         <div className="flow-item">
                             <label>Payer</label>
                             <select
@@ -614,7 +632,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                         </div>
                     </div>
 
-                    {/* Edit Mode: Single Update Button */}
+                    {/* Action Buttons */}
                     {expenseToEdit ? (
                         <>
                             <button type="submit" disabled={loading} className="create-btn settle-btn">
@@ -661,7 +679,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                                     )
                                 })()}
                             </div>
-                            {/* UPI not available message - below buttons */}
+                            {/* UPI not available message */}
                             {isUpiAvailable && receiver && !members.find(m => m.id === receiver)?.upiId && (
                                 <div style={{ textAlign: 'center', marginTop: '8px' }}>
                                     <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>
@@ -694,8 +712,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                         </>
                     )}
                 </form>
-            </div >
-        </div >
+            </div>
+        </div>
     )
 }
-

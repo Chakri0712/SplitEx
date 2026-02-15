@@ -201,3 +201,156 @@
     text-align: center;
     width: 100%;
 }
+
+/* Payment Selector Styles */
+.payment-selector-modal {
+    max-width: 400px;
+    width: 90%;
+    background: linear-gradient(145deg, #1e1e1e, #141414);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.payment-selector-modal .modal-header {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.payment-selector-modal .modal-header h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.payment-selector-modal .modal-body {
+    padding: 20px;
+}
+
+.security-note,
+.limit-note {
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    line-height: 1.5;
+    border: 1px solid transparent;
+}
+
+.security-note {
+    background: rgba(255, 215, 0, 0.08);
+    color: #e6c200;
+    border-color: rgba(255, 215, 0, 0.1);
+}
+
+.limit-note {
+    background: rgba(255, 68, 68, 0.08);
+    color: #ff6b6b;
+    border-color: rgba(255, 68, 68, 0.1);
+}
+
+.note-icon {
+    min-width: 18px;
+    margin-top: 2px;
+    opacity: 0.9;
+}
+
+.app-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.app-button {
+    background: linear-gradient(145deg, #252525, #1e1e1e);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 16px 20px;
+    border-radius: 16px;
+    text-align: left;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Dynamic styling based on --app-color passed from React */
+.app-button::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    background: var(--app-color, #444);
+    opacity: 0.8;
+}
+
+/* Subtle gradient tint on hover */
+.app-button::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--app-color, #444);
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+
+.app-button:hover::after {
+    opacity: 0.08;
+}
+
+.app-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.app-button:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.app-name {
+    margin-left: 16px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    z-index: 1;
+}
+
+/* Chevron indicator for buttons */
+.app-button::after-icon {
+    content: '→';
+    font-family: monospace;
+    font-weight: bold;
+    opacity: 0.3;
+    transform: translateX(-10px);
+    transition: all 0.2s;
+}
+
+.app-button:hover .app-name {
+    color: var(--app-color, white);
+}
