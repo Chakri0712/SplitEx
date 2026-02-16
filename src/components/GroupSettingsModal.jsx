@@ -320,13 +320,16 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                     </form>
 
                     <div className="danger-zone">
-                        <button
-                            onClick={handleLeaveGroup}
-                            disabled={loading}
-                            className="leave-btn"
-                        >
-                            <LogOut size={18} /> Leave Group
-                        </button>
+                        {/* Only show Leave button if there is more than 1 member */}
+                        {memberCount > 1 && (
+                            <button
+                                onClick={handleLeaveGroup}
+                                disabled={loading}
+                                className="leave-btn"
+                            >
+                                <LogOut size={18} /> Leave Group
+                            </button>
+                        )}
 
                         {/* Show Delete button for Admin OR if only 1 member (themselves) */}
                         {(group.created_by === currentUser.id || memberCount === 1) && (

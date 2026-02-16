@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { X, LogOut, Mail, User } from 'lucide-react'
+import { X, LogOut, Mail, User, Globe } from 'lucide-react'
 import './Profile.css'
 import { validateName } from '../utils/validation'
 
@@ -152,7 +152,8 @@ export default function Profile({ session }) {
 
                         <div className="info-group">
                             <label>Country</label>
-                            <div className="input-wrapper">
+                            <div className="input-wrapper" style={{ position: 'relative' }}>
+                                <Globe size={20} className="input-icon" />
                                 <select
                                     value={country}
                                     onChange={(e) => setCountry(e.target.value)}
@@ -160,7 +161,11 @@ export default function Profile({ session }) {
                                     style={{
                                         background: 'transparent',
                                         width: '100%',
-                                        cursor: 'pointer'
+                                        cursor: 'pointer',
+                                        appearance: 'none',
+                                        WebkitAppearance: 'none',
+                                        paddingRight: '40px',
+                                        paddingLeft: '48px' // Make room for the Globe icon
                                     }}
                                 >
                                     <option value="IND" style={{ color: 'black' }}>India</option>

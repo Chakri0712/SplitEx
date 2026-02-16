@@ -60,6 +60,16 @@ export default function Auth() {
                     console.warn('Country detection failed, defaulting to IND', err)
                 }
 
+                // Check if user already exists
+                const { count, error: checkError } = await supabase
+                    .from('profiles')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('email', email)
+
+                if (count > 0) {
+                    throw new Error('User already exists. Please login.')
+                }
+
                 const { error } = await supabase.auth.signUp({
                     email,
                     password,
@@ -141,7 +151,7 @@ export default function Auth() {
                             <User size={20} />
                             <input
                                 type="text"
-                                placeholder="Full Name"
+                                placeholder="User Name"
                                 value={fullName}
                                 onChange={(e) => setFullName(e.target.value)}
                                 required={!isLogin}

@@ -666,7 +666,8 @@ export default function GroupDetails({ session, group, onBack }) {
                     group={currentGroup}
                     currentUser={session.user}
                     onClose={() => setIsSettingsModalOpen(false)}
-                    onUpdate={handleGroupUpdated}
+                    onGroupUpdated={handleGroupUpdated}
+                    onGroupLeft={onBack}
                 />
             )}
 
