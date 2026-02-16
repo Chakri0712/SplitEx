@@ -1,16 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabaseClient'
-import { X, Loader2, ArrowRight, Trash2, Smartphone, HandCoins } from 'lucide-react'
-import PaymentMethodSelector from './PaymentMethodSelector'
+import { X, Loader2, ArrowRight, Trash2, HandCoins } from 'lucide-react'
 import './SettleUpModal.css'
 
-// export default function SettleUpModal({ group, currentUser, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
-// export default function SettleUpModal({ group, currentUser, members, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
-// export default function SettleUpModal({ group, currentUser, members, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
-// export default function SettleUpModal({ group, currentUser, members, onClose, onPaymentRecorded, expenseToEdit = null, onDelete }) {
 export default function SettleUpModal({ group, currentUser, members, debts: propDebts, onClose, onPaymentRecorded, expenseToEdit = null, onDelete, initialData = null }) {
     const [loading, setLoading] = useState(false)
-    // const [members, setMembers] = useState([]) // removing local state
     const [localDebts, setLocalDebts] = useState({}) // { [payerId]: { [receiverId]: amount } }
 
     // Use prop debts if available, otherwise local debts
@@ -47,17 +41,6 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
             setAmount(value)
         }
     }
-
-    // Derived User Country
-    const userCountry = members.find(m => m.id === currentUser.id)?.country || 'USA'
-    const isUpiEnabled = userCountry === 'IND' || userCountry === 'IN'
-
-    // Settlement Flow State
-    const [showUtrPrompt, setShowUtrPrompt] = useState(false)
-    const [utrReference, setUtrReference] = useState('')
-    const [pendingExpenseId, setPendingExpenseId] = useState(null)
-    const [showPaymentSelector, setShowPaymentSelector] = useState(false)
-    const [paymentDetails, setPaymentDetails] = useState(null)
 
     useEffect(() => {
         // fetchMembers() // removing call
@@ -230,15 +213,22 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
 
     // Insert Settlement Details
     const insertSettlementDetails = async (expenseId, method, status, utr = null) => {
+        const insertData = {
+            expense_id: expenseId,
+            settlement_method: method,
+            settlement_status: status,
+            utr_reference: utr,
+            initiated_by: currentUser.id
+        }
+
+        if (status === 'confirmed') {
+            insertData.confirmed_by = currentUser.id
+            insertData.confirmed_at = new Date().toISOString()
+        }
+
         const { error } = await supabase
             .from('settlement_details')
-            .insert({
-                expense_id: expenseId,
-                settlement_method: method,
-                settlement_status: status,
-                utr_reference: utr,
-                initiated_by: currentUser.id
-            })
+            .insert(insertData)
 
         if (error) throw error
     }
@@ -250,10 +240,17 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
         return payerDebts[receiver] || 0
     }
 
-    // Handle Manual Settlement
-    const handleManualSettle = async () => {
+    // Handle Settle Up (Unified)
+    const handleSettleUp = async () => {
         if (!amount || !receiver) return
 
+        // 1. Mandatory Note Validation
+        if (!description.trim()) {
+            alert('Please add a note to describe this settlement.')
+            return
+        }
+
+        // 2. Amount Validation
         const maxAmount = getMaxSettleAmount()
         if (parseFloat(amount) > maxAmount + 0.01) {
             if (maxAmount <= 0) {
@@ -264,149 +261,25 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
             return
         }
 
+        // 3. Determine Method (Full vs Partial)
+        // If amount is within 0.01 of the total debt, consider it a full settlement
+        const isFullKey = parseFloat(amount) >= (maxAmount - 0.01)
+        const settlementMethod = isFullKey ? 'full' : 'partial'
+
+        // 4. Determine Status (Auto-confirm if Receiver initiated)
+        const isSelfSettled = currentUser.id === receiver
+        const initialStatus = isSelfSettled ? 'confirmed' : 'pending_confirmation'
+
         setLoading(true)
         try {
-            const expenseId = await createSettlementRecord('manual')
-            await insertSettlementDetails(expenseId, 'manual', 'pending_confirmation')
+            const expenseId = await createSettlementRecord(settlementMethod)
+            await insertSettlementDetails(expenseId, settlementMethod, initialStatus)
 
             onPaymentRecorded()
             onClose()
         } catch (error) {
             console.error('Error settling up:', error)
             alert('Failed to record settlement: ' + error.message)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    // Handle UPI Settlement
-    const handleUpiSettle = async () => {
-        if (!amount || !receiver) return
-
-        // Get receiver's UPI ID
-        const receiverMember = members.find(m => m.id === receiver)
-        if (!receiverMember?.upiId) {
-            alert('The receiver has not added their UPI ID. Please use Manual Settlement instead.')
-            return
-        }
-
-        const maxAmount = getMaxSettleAmount()
-        if (parseFloat(amount) > maxAmount + 0.01) {
-            if (maxAmount <= 0) {
-                alert('You have pending settlements that cover your dues. Please ask the receiver to confirm or cancel them before creating a new settlement.')
-            } else {
-                alert(`You can only settle up to ${group.currency} ${maxAmount.toFixed(2)} that you owe.`)
-            }
-            return
-        }
-
-        setLoading(true)
-        try {
-            const expenseId = await createSettlementRecord('upi')
-            await insertSettlementDetails(expenseId, 'upi', 'pending_utr')
-            setPendingExpenseId(expenseId)
-
-            // Generate Payment Details
-            const upiAmount = parseFloat(amount).toFixed(2)
-            const note = `SplitEx Settlement - ${group.name}` // Don't encode yet, selector handles it or final link does
-            // Actually, keep it simple for the selector props
-            const details = {
-                pa: receiverMember.upiId,
-                pn: receiverMember.full_name || 'Receiver',
-                am: upiAmount,
-                tr: expenseId, // Transaction Ref
-                tn: note,
-                cu: 'INR'
-            }
-
-            setPaymentDetails(details)
-            setShowPaymentSelector(true)
-            setLoading(false)
-
-            // Show UTR prompt in background so when they close selector/come back, it's there
-            setShowUtrPrompt(true)
-
-        } catch (error) {
-            console.error('Error settling up:', error)
-            alert('Failed to record settlement: ' + error.message)
-            setLoading(false)
-        }
-    }
-
-    // Validate UTR format (12-16 numeric digits)
-    const validateUtr = (utr) => {
-        const cleanUtr = utr.trim()
-        if (!/^\d+$/.test(cleanUtr)) {
-            return 'UTR must contain only numbers'
-        }
-        if (cleanUtr.length < 12 || cleanUtr.length > 16) {
-            return 'UTR must be between 12-16 digits'
-        }
-        return null
-    }
-
-    // Save UTR Reference
-    const handleSaveUtr = async () => {
-        const utrError = validateUtr(utrReference)
-        if (utrError) {
-            alert(utrError)
-            return
-        }
-
-        setLoading(true)
-        try {
-            const { error } = await supabase
-                .from('settlement_details')
-                .update({
-                    utr_reference: utrReference.trim(),
-                    settlement_status: 'pending_confirmation'
-                })
-                .eq('expense_id', pendingExpenseId)
-
-            if (error) throw error
-
-            onPaymentRecorded()
-            onClose()
-        } catch (error) {
-            console.error('Error saving UTR:', error)
-            alert('Failed to save UTR: ' + error.message)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    // Cancel UTR - Delete the pending settlement
-    const handleCancelUtr = async () => {
-        if (!pendingExpenseId) {
-            onClose()
-            return
-        }
-
-        setLoading(true)
-        try {
-            // Delete the settlement details first
-            await supabase
-                .from('settlement_details')
-                .delete()
-                .eq('expense_id', pendingExpenseId)
-
-            // Delete the expense splits
-            await supabase
-                .from('expense_splits')
-                .delete()
-                .eq('expense_id', pendingExpenseId)
-
-            // Delete the expense
-            await supabase
-                .from('expenses')
-                .delete()
-                .eq('id', pendingExpenseId)
-
-            onPaymentRecorded()
-            onClose()
-        } catch (error) {
-            console.error('Error canceling settlement:', error)
-            alert('Failed to cancel: ' + error.message)
         } finally {
             setLoading(false)
         }
@@ -460,78 +333,6 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
             onDelete(expenseToEdit.id)
             onClose()
         }
-    }
-
-    // Check if UPI is available (only for INR AND User is in India)
-    const isUpiAvailable = group.currency === 'INR' && isUpiEnabled
-
-    // UTR Prompt Screen
-    if (showUtrPrompt) {
-        return (
-            <>
-                <div className="modal-overlay">
-                    <div className="modal-card">
-                        <div className="modal-header">
-                            <h2>Enter UTR/Reference</h2>
-                            <button onClick={handleCancelUtr} className="close-btn">
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        <div className="modal-form" style={{ textAlign: 'center' }}>
-                            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                                Enter the transaction reference number from your payment app to confirm this settlement.
-                            </p>
-
-                            <input
-                                type="text"
-                                placeholder="e.g. 402345678912"
-                                value={utrReference}
-                                onChange={(e) => setUtrReference(e.target.value)}
-                                className="amount-input"
-                                style={{ textAlign: 'center', fontSize: '1.1rem' }}
-                                autoFocus
-                            />
-
-                            <button
-                                onClick={handleSaveUtr}
-                                disabled={loading}
-                                className="create-btn settle-btn"
-                                style={{ marginTop: '1.5rem' }}
-                            >
-                                {loading ? <Loader2 className="spin" /> : 'Save & Complete'}
-                            </button>
-
-                            <button
-                                onClick={handleCancelUtr}
-                                disabled={loading}
-                                className="cancel-btn"
-                                style={{
-                                    marginTop: '1rem',
-                                    background: 'rgba(239, 68, 68, 0.1)',
-                                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                                    color: '#ef4444',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem',
-                                    padding: '10px 16px',
-                                    borderRadius: '10px',
-                                    width: '100%'
-                                }}
-                            >
-                                Cancel Settlement
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                {showPaymentSelector && (
-                    <PaymentMethodSelector
-                        isOpen={showPaymentSelector}
-                        onClose={() => setShowPaymentSelector(false)}
-                        paymentDetails={paymentDetails}
-                    />
-                )}
-            </>
-        )
     }
 
     return (
@@ -609,13 +410,14 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                         </div>
 
                         <div className="form-group" style={{ marginTop: '1rem' }}>
-                            <label>Note (Optional)</label>
+                            <label>Note (Mandatory)</label>
                             <input
                                 type="text"
                                 placeholder="Add a short note..."
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 maxLength={100}
+                                required
                                 className="description-input"
                                 style={{
                                     width: '100%',
@@ -649,67 +451,19 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                             </button>
                         </>
                     ) : (
-                        /* Create Mode: Dual Settlement Buttons */
-                        <>
-                            <div className="settlement-options">
-                                <button
-                                    type="button"
-                                    onClick={handleManualSettle}
-                                    disabled={loading || !amount || !receiver || parseFloat(amount) <= 0}
-                                    className="settle-option-btn manual"
-                                >
-                                    <HandCoins size={20} />
-                                    <span>Settle Manually</span>
-                                </button>
-
-                                {isUpiAvailable && (() => {
-                                    const receiverMember = members.find(m => m.id === receiver)
-                                    const receiverHasUpi = receiverMember?.upiId
-                                    return (
-                                        <button
-                                            type="button"
-                                            onClick={handleUpiSettle}
-                                            disabled={loading || !amount || !receiver || !receiverHasUpi || parseFloat(amount) <= 0}
-                                            className="settle-option-btn upi"
-                                            title={!receiverHasUpi ? 'Receiver has not added UPI ID' : ''}
-                                        >
-                                            <Smartphone size={20} />
-                                            <span>Pay via UPI</span>
-                                        </button>
-                                    )
-                                })()}
-                            </div>
-                            {/* UPI not available message */}
-                            {isUpiAvailable && receiver && !members.find(m => m.id === receiver)?.upiId && (
-                                <div style={{ textAlign: 'center', marginTop: '8px' }}>
-                                    <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>
-                                        Receiver hasn't added UPI ID
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Prompt for payer to add UPI ID */}
-                            {isUpiAvailable && !members.find(m => m.id === currentUser.id)?.upiId && (
-                                <div style={{
-                                    textAlign: 'center',
-                                    marginTop: '12px',
-                                    padding: '8px 12px',
-                                    background: 'rgba(234, 179, 8, 0.1)',
-                                    borderRadius: '6px',
-                                    border: '1px solid rgba(234, 179, 8, 0.3)'
-                                }}>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>
-                                        💡 <a
-                                            href="/profile"
-                                            onClick={(e) => { e.preventDefault(); window.location.href = '/profile'; }}
-                                            style={{ color: 'var(--primary)', textDecoration: 'underline', fontWeight: 600 }}
-                                        >
-                                            Add your UPI ID
-                                        </a> to receive instant payments
-                                    </span>
-                                </div>
-                            )}
-                        </>
+                        /* Create Mode: Single Settle Up Button */
+                        <div className="settlement-options">
+                            <button
+                                type="button"
+                                onClick={handleSettleUp}
+                                disabled={loading || !amount || !receiver || parseFloat(amount) <= 0 || !description.trim()}
+                                className="settle-option-btn manual"
+                                style={{ width: '100%' }}
+                            >
+                                <HandCoins size={20} />
+                                <span>Settle Up</span>
+                            </button>
+                        </div>
                     )}
                 </form>
             </div>

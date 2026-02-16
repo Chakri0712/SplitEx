@@ -80,7 +80,7 @@ create table if not exists expense_splits (
 create table if not exists settlement_details (
   id uuid primary key default uuid_generate_v4(),
   expense_id uuid references expenses(id) on delete cascade unique,
-  settlement_method text check (settlement_method in ('manual', 'upi')) not null,
+  settlement_method text not null,
   settlement_status text check (settlement_status in ('pending_utr', 'pending_confirmation', 'confirmed', 'disputed', 'cancelled')) not null,
   utr_reference text,
   cancellation_reason text,

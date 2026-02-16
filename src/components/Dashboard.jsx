@@ -1,11 +1,9 @@
-
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Users, LogOut, ExternalLink, UserPlus, User } from 'lucide-react'
 import CreateGroupModal from './CreateGroupModal'
 import JoinGroupModal from './JoinGroupModal'
-import UpiPromptBanner from './UpiPromptBanner'
 import './Dashboard.css'
 
 export default function Dashboard({ session, onGroupSelect }) {
@@ -17,14 +15,8 @@ export default function Dashboard({ session, onGroupSelect }) {
     const [isJoinModalOpen, setIsJoinModalOpen] = useState(false)
     const [isActionMenuOpen, setIsActionMenuOpen] = useState(false)
 
-    // UPI Prompt states
-    const [userUpiId, setUserUpiId] = useState(null)
-    const [userCountry, setUserCountry] = useState(null)
-    const [showUpiPrompt, setShowUpiPrompt] = useState(false)
-
     useEffect(() => {
         fetchGroups()
-        checkUpiPrompt()
     }, [location.key])
 
     const fetchGroups = async () => {
@@ -45,47 +37,6 @@ export default function Dashboard({ session, onGroupSelect }) {
         } finally {
             setLoading(false)
         }
-    }
-
-    const checkUpiPrompt = async () => {
-        const userId = session.user.id
-
-        // Fetch user's UPI ID and Country FIRST
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('upi_id, country')
-            .eq('id', userId)
-            .single()
-
-        if (!error && data) {
-            setUserUpiId(data.upi_id)
-            setUserCountry(data.country)
-
-            // Logic for Red Dot and Banner
-            // Red Dot depends on: No UPI ID AND Country is India
-            // Banner depends on: Red Dot condition AND Not dismissed
-
-            const isIndia = data.country === 'IND' || data.country === 'IN'
-            const missingUpi = !data.upi_id
-
-            if (missingUpi && isIndia) {
-                // Check dismissal for Banner only
-                const dismissKey = `upi_prompt_dismissed_${userId}`
-                const isDismissed = localStorage.getItem(dismissKey)
-                if (!isDismissed) {
-                    setShowUpiPrompt(true)
-                }
-            } else {
-                setShowUpiPrompt(false)
-            }
-        }
-    }
-
-    const handleDismissUpiPrompt = () => {
-        const userId = session.user.id
-        const dismissKey = `upi_prompt_dismissed_${userId}`
-        localStorage.setItem(dismissKey, 'true')
-        setShowUpiPrompt(false)
     }
 
     const handleGroupAction = () => {
@@ -113,20 +64,9 @@ export default function Dashboard({ session, onGroupSelect }) {
                         <div className="header-avatar-placeholder">
                             <User size={20} />
                         </div>
-                        {!userUpiId && (userCountry === 'IND' || userCountry === 'IN') && (
-                            <span className="profile-badge"></span>
-                        )}
                     </button>
                 </div>
             </header>
-
-            {/* UPI Prompt Banner */}
-            {showUpiPrompt && (
-                <UpiPromptBanner
-                    onDismiss={handleDismissUpiPrompt}
-                    userId={session.user.id}
-                />
-            )}
 
             {loading ? (
                 <div className="loading-state">Loading groups...</div>

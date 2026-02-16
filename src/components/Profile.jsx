@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { X, LogOut, Mail, User, Smartphone } from 'lucide-react'
+import { X, LogOut, Mail, User } from 'lucide-react'
 import './Profile.css'
 import { validateName } from '../utils/validation'
 
@@ -11,29 +11,24 @@ export default function Profile({ session }) {
     const [isSigningOut, setIsSigningOut] = useState(false)
     const { user } = session
     const [fullName, setFullName] = useState(user.user_metadata?.full_name || '')
-    const [upiId, setUpiId] = useState('')
-    const [originalUpiId, setOriginalUpiId] = useState('')
+    // const [upiId, setUpiId] = useState('') // Removed
+    // const [originalUpiId, setOriginalUpiId] = useState('') // Removed
     const [country, setCountry] = useState('IND') // Default to India (3-letter ISO)
     const [originalCountry, setOriginalCountry] = useState('IND')
     const [email] = useState(user.email)
     const [message, setMessage] = useState(null)
     const [error, setError] = useState(null)
 
-    // Fetch existing UPI ID and Country from profiles table
+    // Fetch existing Country from profiles table
     useEffect(() => {
         const fetchProfileData = async () => {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('upi_id, country')
+                .select('country')
                 .eq('id', user.id)
                 .single()
 
             if (!error && data) {
-                if (data.upi_id) {
-                    setUpiId(data.upi_id)
-                    setOriginalUpiId(data.upi_id)
-                }
-
                 let loadedCountry = data.country
                 // Fallback to auth metadata if profile is empty
                 if (!loadedCountry && user.user_metadata?.country) {
@@ -63,27 +58,18 @@ export default function Profile({ session }) {
             return
         }
 
-        // Basic UPI ID validation (optional field)
-        // Relaxed regex to allow dots, dashes in both user and bank part
-        if (upiId && !/^[\w.-]+@[\w.-]+$/.test(upiId.trim())) {
-            setError('Invalid UPI ID format (e.g., name@upi, name@ok.axis)')
-            return
-        }
-
         const nameChanged = fullName !== user.user_metadata?.full_name
-        const upiChanged = upiId !== originalUpiId
         const countryChanged = country !== originalCountry
 
-        if (!nameChanged && !upiChanged && !countryChanged) return
+        if (!nameChanged && !countryChanged) return
 
         setIsSaving(true)
         try {
-            // 1. Update public profile (name, UPI ID, country)
+            // 1. Update public profile (name, country)
             const { error: profileError } = await supabase
                 .from('profiles')
                 .update({
                     full_name: fullName.trim(),
-                    upi_id: upiId.trim() || null,
                     country: country
                 })
                 .eq('id', user.id)
@@ -98,7 +84,6 @@ export default function Profile({ session }) {
                 if (authError) throw authError
             }
 
-            setOriginalUpiId(upiId.trim())
             setOriginalCountry(country)
             setMessage('Profile updated successfully!')
             setTimeout(() => setMessage(null), 3000)
@@ -189,22 +174,7 @@ export default function Profile({ session }) {
                             </div>
                         </div>
 
-                        {country === 'IND' && (
-                            <div className="info-group">
-                                <label>UPI ID</label>
-                                <div className={`input-wrapper ${!upiId ? 'missing-upi' : ''}`}>
-                                    <Smartphone size={20} className="input-icon" />
-                                    <input
-                                        type="text"
-                                        value={upiId}
-                                        onChange={(e) => setUpiId(e.target.value)}
-                                        placeholder="1234567890@upi"
-                                        className="profile-input"
-                                    />
-                                </div>
-                                <span className="input-helper">Add your UPI ID so others can pay you directly</span>
-                            </div>
-                        )}
+                        {/* UPI Section Removed */}
                     </div>
 
                     {error && <div className="error-message-profile">{error}</div>}
@@ -214,7 +184,7 @@ export default function Profile({ session }) {
                         <button
                             className="update-btn"
                             onClick={handleUpdate}
-                            disabled={isSaving || isSigningOut || (fullName === user.user_metadata?.full_name && upiId === originalUpiId && country === originalCountry)}
+                            disabled={isSaving || isSigningOut || (fullName === user.user_metadata?.full_name && country === originalCountry)}
                         >
                             {isSaving ? 'Saving...' : 'Save Changes'}
                         </button>

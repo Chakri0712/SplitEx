@@ -100,11 +100,14 @@ export default function GroupDetails({ session, group, onBack }) {
             if (expenseIds && expenseIds.length > 0) {
                 const { data: allSettlements } = await supabase
                     .from('settlement_details')
-                    .select('expense_id, settlement_status')
+                    .select('expense_id, settlement_status, settlement_method')
                     .in('expense_id', expenseIds)
 
                 allSettlements?.forEach(s => {
-                    settlementStatusMap[s.expense_id] = s.settlement_status
+                    settlementStatusMap[s.expense_id] = {
+                        status: s.settlement_status,
+                        method: s.settlement_method
+                    }
                     // Exclude from calculations if not confirmed
                     if (s.settlement_status !== 'confirmed') {
                         excludedExpenseIds.add(s.expense_id)
@@ -116,10 +119,15 @@ export default function GroupDetails({ session, group, onBack }) {
             const enhancedExpenses = (expensesData || []).map(e => {
                 // Determine if currentUser is involved in this expense (via splits)
                 const mySplit = splits?.find(s => s.expense_id === e.id && s.user_id === session.user.id)
+                // Find receiver (the one who split matches but is not the payer)
+                const receiverSplit = splits?.find(s => s.expense_id === e.id && s.user_id !== e.paid_by)
+
                 return {
                     ...e,
-                    settlement_status: settlementStatusMap[e.id],
-                    is_involved: e.paid_by === session.user.id || !!mySplit
+                    settlement_status: settlementStatusMap[e.id]?.status,
+                    settlement_method: settlementStatusMap[e.id]?.method,
+                    is_involved: e.paid_by === session.user.id || !!mySplit,
+                    receiver_id: receiverSplit?.user_id
                 }
             })
 
@@ -440,7 +448,7 @@ export default function GroupDetails({ session, group, onBack }) {
                                             if (amountTheyOwe > 0.01) {
                                                 hasDebts = true
                                                 return (
-                                                    <div key={user.id} className="debt-card owed">
+                                                    <div key={user.id} className="debt-card owed" onClick={() => openSettleModalWithData({ payer: user.id, receiver: session.user.id, amount: amountTheyOwe, locked: true })} style={{ cursor: 'pointer' }}>
                                                         <div className="debt-info">
                                                             <div className="debt-text">
                                                                 <span><strong>{user.name}</strong> owes you</span>
@@ -497,17 +505,36 @@ export default function GroupDetails({ session, group, onBack }) {
                                     </div>
                                     <div className="expense-info">
                                         <h4>
-                                            {expense.description}
-                                            {expense.settlement_status === 'cancelled' && (
-                                                <span style={{ color: '#ef4444', fontSize: '0.8em', marginLeft: '6px' }}>
-                                                    (Cancelled)
-                                                </span>
-                                            )}
+                                            {expense.category === 'settlement' ? (() => {
+                                                const receiver = members.find(m => m.id === expense.receiver_id)
+                                                const receiverName = receiver ? receiver.name.split(' ')[0] : 'Unknown'
+                                                return `Settlement to ${receiverName}`
+                                            })() : expense.description}
                                         </h4>
                                         <p>
-                                            {expense.paid_by === session.user.id
-                                                ? 'You'
-                                                : expense.paid_by_profile?.full_name?.split(' ')[0] || 'Unknown'} paid
+                                            {expense.category === 'settlement' ? (
+                                                /* Status Display instead of Notes */
+                                                <span style={{
+                                                    fontSize: '0.85em',
+                                                    fontWeight: '600',
+                                                    display: 'block',
+                                                    marginBottom: '2px',
+                                                    color: expense.settlement_status === 'confirmed' ? '#10b981' :
+                                                        expense.settlement_status === 'cancelled' ? '#ef4444' :
+                                                            '#f59e0b'
+                                                }}>
+                                                    {expense.settlement_status === 'confirmed' ? 'Confirmed' :
+                                                        expense.settlement_status === 'cancelled' ? 'Cancelled' :
+                                                            expense.settlement_status === 'pending_confirmation' ? 'Pending Confirmation' :
+                                                                'Pending UTR'}
+                                                </span>
+                                            ) : null}
+
+                                            <span style={{ color: 'var(--text-secondary)' }}>
+                                                {expense.paid_by === session.user.id
+                                                    ? 'You'
+                                                    : expense.paid_by_profile?.full_name?.split(' ')[0] || 'Unknown'} paid
+                                            </span>
                                         </p>
                                     </div>
                                     <div className="expense-amount">

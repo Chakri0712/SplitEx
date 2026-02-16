@@ -101,13 +101,8 @@ export default function LandingPage({ session }) {
                     </div>
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />
-                        <h3>Instant UPI Payments</h3>
-                        <p>Pay friends directly via UPI with one tap. Made for India. 🇮🇳</p>
-                    </div>
-                    <div className="feature-card">
-                        <CheckCircle2 className="feature-icon" />
-                        <h3>Settlement Verification</h3>
-                        <p>Track payment confirmations with UTR references. No more "Did you pay?" messages.</p>
+                        <h3>Verified Settlements</h3>
+                        <p>Payments stay "Pending" until the receiver confirms. Everyone is held responsible.</p>
                     </div>
                     <div className="feature-card">
                         <CheckCircle2 className="feature-icon" />

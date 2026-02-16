@@ -364,16 +364,26 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
                                 </div>
                             )}
 
-                            {/* Method */}
+                            {/* Settlement Mode */}
                             {details && (
                                 <div className="detail-row">
-                                    <span className="detail-label">Method</span>
+                                    <span className="detail-label">Mode</span>
                                     <span className="detail-value method">
                                         {getMethodIcon(details.settlement_method)}
-                                        {details.settlement_method === 'upi' ? 'UPI' : 'Manual Settlement'}
+                                        {details.settlement_method === 'full' ? 'Full Settlement' :
+                                            details.settlement_method === 'partial' ? 'Partial Settlement' :
+                                                details.settlement_method === 'upi' ? 'UPI' : 'Manual Settlement'}
                                     </span>
                                 </div>
                             )}
+
+                            {/* Payer Notes (Mandatory) */}
+                            <div className="detail-row" style={{ alignItems: 'flex-start' }}>
+                                <span className="detail-label">Payer Notes</span>
+                                <span className="detail-value" style={{ fontStyle: 'italic', color: 'var(--text-primary)' }}>
+                                    "{expense.description}"
+                                </span>
+                            </div>
 
                             {/* Initiated By (Payer) */}
                             <div className="detail-row">
