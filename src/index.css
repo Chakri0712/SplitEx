@@ -5,103 +5,52 @@
   /* ------------------------------------------------------------------
      🎨 ACTIVE THEME: Midnight Black + Gold (Premium / VIP)
      ------------------------------------------------------------------ */
-  --bg-primary: #0a0a0a;
-  /* Neutral Black */
-  --bg-secondary: #171717;
-  /* Neutral Dark Gray */
-  --bg-card: #262626;
-  /* Neutral Card Gray */
-  --bg-input: #404040;
-  /* Neutral Input */
+  /* True Black for AMOLED/Premium feel */
+  --bg-primary: #000000;
+
+  /* Rich Dark Gray for contrast */
+  --bg-secondary: #0f0f0f;
+
+  /* Subtle Card background - lighter for visibility */
+  --bg-card: #1c1c1c;
+
+  /* Input fields */
+  --bg-input: #262626;
 
   /* Text Colors */
-  --text-primary: #FFFFFF;
-  --text-secondary: #A3A3A3;
-  --text-muted: #737373;
+  --text-primary: #ffffff;
+  --text-secondary: #d4d4d8;
+  /* Zinc-300 (Lighter than before) */
+  --text-muted: #a1a1aa;
+  /* Zinc-400 */
 
   /* Accents */
   --primary: #FFD700;
   /* Pure Gold */
   --primary-hover: #E6C200;
-  --primary-glow: rgba(255, 215, 0, 0.4);
+  --primary-glow: rgba(255, 215, 0, 0.15);
+  /* More subtle glow */
+  --primary-alpha: rgba(255, 215, 0, 0.1);
 
   /* Status Colors */
-  --success: #2EC4B6;
+  --success: #22c55e;
   --danger: #ef4444;
-  --danger-bg: rgba(239, 68, 68, 0.15);
+  --danger-bg: rgba(239, 68, 68, 0.1);
 
-  /* Borders & Radius - Tighter for native app feel */
-  --border-color: #404040;
+  /* Borders & Radius - Native Tightness */
+  --border-color: #3f3f46;
+  /* Zinc-700 (Much lighter than #27272a) */
   --radius-lg: 12px;
   --radius-md: 8px;
   --radius-sm: 6px;
 
   /* Font */
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 
-  /* ------------------------------------------------------------------
-     💾 ARCHIVED THEMES (Uncomment to switch)
-     ------------------------------------------------------------------ */
-
-  /* 1️⃣ ORIGINAL: Midnight Indigo + Cyan (Default)
-  --bg-primary: #020617;
-  --bg-secondary: #0f172a;
-  --bg-card: #1e293b;
-  --bg-input: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --primary: #06b6d4;
-  --primary-hover: #0891b2;
-  --primary-glow: rgba(6, 182, 212, 0.5);
-  --success: #10b981;
-  --border-color: #334155;
-  */
-
-  /* 2️⃣ CHARCOAL + EMERALD (Finance / Serious)
-  --bg-primary: #0E1114;
-  --bg-secondary: #14191F;
-  --bg-card: #1A1F24;
-  --bg-input: #272E36;
-  --text-primary: #E6E8EB;
-  --text-secondary: #A1A1AA;
-  --text-muted: #71717A;
-  --primary: #34D399;
-  --primary-hover: #10B981;
-  --primary-glow: rgba(52, 211, 153, 0.4);
-  --success: #34D399;
-  --border-color: #272E36;
-  */
-
-  /* 3️⃣ DEEP NAVY + LAVENDER (Modern / SaaS)
-  --bg-primary: #0A0F1E;
-  --bg-secondary: #111827;
-  --bg-card: #161C2D;
-  --bg-input: #1F2937;
-  --text-primary: #F1F5F9;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --primary: #818CF8;
-  --primary-hover: #6366F1;
-  --primary-glow: rgba(129, 140, 248, 0.4);
-  --success: #34D399;
-  --border-color: #1F2937;
-  */
-
-  /* 4️⃣ GRAPHITE + WARM TEAL (Friendly / Cozy)
-  --bg-primary: #121417;
-  --bg-secondary: #1A1D21;
-  --bg-card: #1F2933;
-  --bg-input: #2A3441;
-  --text-primary: #EDEDED;
-  --text-secondary: #A3A3A3;
-  --text-muted: #737373;
-  --primary: #2EC4B6;
-  --primary-hover: #25A296;
-  --primary-glow: rgba(46, 196, 182, 0.4);
-  --success: #2EC4B6;
-  --border-color: #2A3441;
-  */
+  /* Layout Z-Indexes */
+  --z-nav: 50;
+  --z-modal: 100;
+  --z-overlay: 90;
 }
 
 * {
@@ -237,4 +186,13 @@ input:focus {
 .close-btn:hover {
   background: rgba(255, 255, 255, 0.1) !important;
   color: var(--text-primary) !important;
+}
+
+/* 📱 Mobile: Reverted to Center per user request */
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 1rem;
+    align-items: center !important;
+    /* Force center */
+  }
 }

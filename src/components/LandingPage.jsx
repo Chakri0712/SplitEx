@@ -25,15 +25,7 @@ export default function LandingPage({ session }) {
             <nav className="landing-nav">
                 <div className="logo">SplitEx</div>
                 <div className="nav-links">
-                    <a href="#features">Features</a>
-                    {!session && (
-                        <button className="signup-link-nav" onClick={handleSignUp}>
-                            Sign Up
-                        </button>
-                    )}
-                    <button className="login-link" onClick={() => navigate('/auth')}>
-                        {session ? 'Dashboard' : 'Login'}
-                    </button>
+                    {/* Navigation removed per user request */}
                 </div>
             </nav>
 
@@ -58,36 +50,7 @@ export default function LandingPage({ session }) {
                 </div>
 
                 {/* Hero Visual / Mockup */}
-                <div className="hero-visual">
-                    <div className="phone-mockup">
-                        <div className="screen-content">
-                            <div className="mockup-header">
-                                <span>9:41</span>
-                                <span>Balances</span>
-                            </div>
-                            <div className="mockup-body">
-                                <div className="mockup-card">
-                                    <div className="avatar pink">C</div>
-                                    <div className="info">
-                                        <span>Charlie</span>
-                                        <span className="sub">you owe</span>
-                                    </div>
-                                    <span className="amount negative">USD 45.00</span>
-                                </div>
-                                <div className="mockup-card">
-                                    <div className="avatar blue">D</div>
-                                    <div className="info">
-                                        <span>Diana</span>
-                                        <span className="sub">you get</span>
-                                    </div>
-                                    <span className="amount positive">USD 120.00</span>
-                                </div>
-                            </div>
-                            <div className="mockup-nav"></div>
-                        </div>
-                        <div className="glow-effect"></div>
-                    </div>
-                </div>
+                {/* Hero Visual removed per user request */}
             </section>
 
             {/* Features Grid */}

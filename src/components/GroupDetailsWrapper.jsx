@@ -49,7 +49,7 @@ export default function GroupDetailsWrapper({ session }) {
         <GroupDetails
             session={session}
             group={group}
-            onBack={() => window.location.href = '/dashboard'}
+            onBack={() => navigate('/dashboard')}
         />
     )
 }

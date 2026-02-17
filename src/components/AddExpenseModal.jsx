@@ -202,7 +202,9 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                         paid_by: paidBy,
                         amount: totalAmount,
                         description: description.trim(),
-                        date: new Date(date).toISOString()
+                        date: new Date(date).toISOString(),
+                        updated_at: new Date().toISOString(),
+                        updated_by: currentUser.id
                     })
                     .eq('id', expenseId)
 

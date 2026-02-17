@@ -17,8 +17,8 @@
 
 .modal-card {
     background: var(--bg-card);
-    padding: 16px;
-    /* Reduced from 1rem standard/20px */
+    padding: 20px;
+    /* Standard padding */
     border-radius: 16px;
     /* Slightly tighter radius */
     width: 100%;
@@ -82,8 +82,8 @@
 }
 
 .form-group {
-    margin-bottom: 0.5rem;
-    /* Reduced */
+    margin-bottom: 1rem;
+    /* Increased spacing */
 }
 
 .form-group label {

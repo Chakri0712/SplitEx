@@ -1,16 +1,18 @@
 .dashboard-container {
-    padding: 14px;
-    padding-bottom: 80px;
-    max-width: 800px;
+    padding: 12px;
+    padding-bottom: 90px;
+    /* Space for FAB + Nav */
+    /* Shell handles max-width and height */
     margin: 0 auto;
-    min-height: 100vh;
 }
 
 .dashboard-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1rem;
+    padding-top: 4px;
+    /* Safe area top nudge */
 }
 
 .header-left h1 {
@@ -271,4 +273,12 @@
     50% {
         opacity: 0.6;
     }
+}
+
+.fab-container {
+    position: fixed;
+    bottom: 84px;
+    /* Above Bottom Nav (64px) + 20px padding */
+    right: 20px;
+    z-index: 1000;
 }

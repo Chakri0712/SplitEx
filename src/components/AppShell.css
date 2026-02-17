@@ -1,0 +1,153 @@
+/* App Shell Container - Single Page Feel */
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    /* Mobile viewport fix */
+    background-color: var(--bg-primary);
+    overflow: hidden;
+    /* Prevent body scroll, handle inside content */
+    position: relative;
+    max-width: 600px;
+    /* Enforce mobile width on desktop */
+    margin: 0 auto;
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+}
+
+/* Main Content Area */
+.shell-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 80px;
+    /* Space for Bottom Nav */
+    -webkit-overflow-scrolling: touch;
+    /* Smooth scroll on iOS */
+    scroll-behavior: smooth;
+    position: relative;
+}
+
+/* Hide scrollbar but keep functionality */
+.shell-content::-webkit-scrollbar {
+    width: 4px;
+    /* Very thin on desktop */
+}
+
+.shell-content::-webkit-scrollbar-thumb {
+    background: var(--bg-card);
+    border-radius: 4px;
+}
+
+/* Top Navigation Bar (Contextual) */
+.shell-header {
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: rgba(0, 0, 0, 0.85);
+    /* Proper transparency */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-nav);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.shell-header-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+.shell-header-action {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Bottom Navigation */
+.bottom-nav {
+    height: 64px;
+    /* Standard Native Height */
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border-color);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    /* 3 Tabs */
+    align-items: center;
+    position: absolute;
+    /* Absolute within the shell container */
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--z-nav);
+    padding-bottom: env(safe-area-inset-bottom);
+    /* iPhone X+ safety */
+}
+
+/* Tab Item */
+.nav-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 100%;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.nav-tab svg {
+    transition: transform 0.2s;
+}
+
+/* Active State - Gold Pop */
+.nav-tab.active {
+    color: var(--primary);
+}
+
+.nav-tab.active svg {
+    transform: translateY(-2px);
+    filter: drop-shadow(0 0 8px var(--primary-glow));
+}
+
+.nav-tab span {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+.nav-indicator {
+    position: absolute;
+    top: 0;
+    width: 40px;
+    height: 2px;
+    background: var(--primary);
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 2px 8px var(--primary-glow);
+}
+
+/* Ripple/Tap Effect */
+.nav-tab:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+}

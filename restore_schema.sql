@@ -65,7 +65,9 @@ create table if not exists expenses (
   category text,
   date timestamp with time zone default timezone('utc'::text, now()) not null,
   created_by uuid references profiles(id), -- Nullable for backward compatibility, but good to have
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()),
+  updated_by uuid references profiles(id)
 );
 
 -- Expense Splits

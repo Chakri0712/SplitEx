@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Auth from './components/Auth'
+import AppShell from './components/AppShell'
 import Dashboard from './components/Dashboard'
 import GroupDetailsWrapper from './components/GroupDetailsWrapper'
 import LandingPage from './components/LandingPage'
@@ -33,35 +34,24 @@ function App() {
     return (
         <Router>
             <Routes>
-                {/* Public Route: Landing Page */}
-                <Route path="/" element={<LandingPage session={session} />} />
+                {/* Global App Shell */}
+                <Route element={<AppShell session={session} />}>
+                    {/* Public Routes */}
+                    <Route path="/" element={<LandingPage session={session} />} />
 
-                {/* Auth Route */}
-                <Route
-                    path="/auth"
-                    element={!session ? <Auth /> : <Navigate to="/dashboard" replace />}
-                />
+                    <Route
+                        path="/auth"
+                        element={!session ? <Auth /> : <Navigate to="/dashboard" replace />}
+                    />
 
-                {/* Protected Dashboard */}
-                <Route
-                    path="/dashboard"
-                    element={session ? <Dashboard session={session} /> : <Navigate to="/" replace />}
-                />
+                    {/* Protected Routes */}
+                    <Route path="/dashboard" element={session ? <Dashboard session={session} /> : <Navigate to="/" replace />} />
+                    <Route path="/group/:groupId" element={session ? <GroupDetailsWrapper session={session} /> : <Navigate to="/" replace />} />
+                    <Route path="/profile" element={session ? <Profile session={session} /> : <Navigate to="/" replace />} />
 
-                {/* Protected Group Details */}
-                <Route
-                    path="/group/:groupId"
-                    element={session ? <GroupDetailsWrapper session={session} /> : <Navigate to="/" replace />}
-                />
-
-                {/* Protected Profile */}
-                <Route
-                    path="/profile"
-                    element={session ? <Profile session={session} /> : <Navigate to="/" replace />}
-                />
-
-                {/* Catch all redirect */}
-                <Route path="*" element={<Navigate to="/" replace />} />
+                    {/* Catch all */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Route>
             </Routes>
         </Router>
     )

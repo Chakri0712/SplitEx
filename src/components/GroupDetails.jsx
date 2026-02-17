@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabaseClient'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info, HandCoins, ArrowRight } from 'lucide-react'
@@ -56,7 +56,8 @@ export default function GroupDetails({ session, group, onBack }) {
                 .select(`
           *,
           paid_by_profile:paid_by (full_name),
-          created_by_profile:created_by (full_name)
+          created_by_profile:created_by (full_name),
+          updated_by_profile:updated_by (full_name)
         `)
                 .eq('group_id', currentGroup.id)
                 .order('date', { ascending: false })
@@ -319,21 +320,81 @@ export default function GroupDetails({ session, group, onBack }) {
     }
 
     // --- RENDER LOGIC for Filtered List ---
-    const filteredExpenses = expenses.filter(e => {
-        if (expenseFilter === 'expenses') return e.category !== 'settlement'
+    const filteredExpenses = useMemo(() => {
+        return expenses.filter(e => {
+            if (expenseFilter === 'expenses') return e.category !== 'settlement'
 
-        // Settlement Filter Logic
-        if (e.category === 'settlement') {
-            if (settlementsFilterMode === 'all') return true
-            // "My Settlements" = Involved as Payer OR Receiver
-            if (settlementsFilterMode === 'my') return e.is_involved
-            // "Others" = NOT Involved
-            if (settlementsFilterMode === 'others') return !e.is_involved
+            // Settlement Filter Logic
+            if (e.category === 'settlement') {
+                if (settlementsFilterMode === 'all') return true
+                // "My Settlements" = Involved as Payer OR Receiver
+                if (settlementsFilterMode === 'my') return e.is_involved
+                // "Others" = NOT Involved
+                if (settlementsFilterMode === 'others') return !e.is_involved
 
-            return true
+                return true
+            }
+            return false
+        })
+    }, [expenses, expenseFilter, settlementsFilterMode])
+
+    const myDebtsDisplay = useMemo(() => {
+        if (expenseFilter !== 'settlements') return null;
+
+        const myDebts = debts[session.user.id] || {}
+        const otherUsers = members.filter(m => m.id !== session.user.id)
+        let hasDebts = false
+
+        const cards = otherUsers.map(user => {
+            const amountIOwe = myDebts[user.id] || 0
+            const amountTheyOwe = (debts[user.id] || {})[session.user.id] || 0
+
+            if (amountIOwe > 0.01) {
+                hasDebts = true
+                return (
+                    <div key={user.id} className="debt-card owe" onClick={() => openSettleModalWithData({ receiver: user.id, amount: amountIOwe, locked: true })}>
+                        <div className="debt-info">
+                            <div className="debt-text">
+                                <span>You owe <strong>{user.name}</strong></span>
+                            </div>
+                        </div>
+                        <span className="debt-amount negative">
+                            {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
+                            {amountIOwe.toFixed(2)}
+                        </span>
+                    </div>
+                )
+            }
+
+            if (amountTheyOwe > 0.01) {
+                hasDebts = true
+                return (
+                    <div key={user.id} className="debt-card owed" onClick={() => openSettleModalWithData({ payer: user.id, receiver: session.user.id, amount: amountTheyOwe, locked: true })} style={{ cursor: 'pointer' }}>
+                        <div className="debt-info">
+                            <div className="debt-text">
+                                <span><strong>{user.name}</strong> owes you</span>
+                            </div>
+                        </div>
+                        <span className="debt-amount positive">
+                            {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
+                            {amountTheyOwe.toFixed(2)}
+                        </span>
+                    </div>
+                )
+            }
+            return null
+        })
+
+        if (!hasDebts) {
+            return (
+                <div className="empty-debts">
+                    <p>✨ You are all settled up! No pending debts.</p>
+                </div>
+            )
         }
-        return false
-    })
+
+        return cards
+    }, [debts, members, session.user.id, expenseFilter, currentGroup.currency])
 
     return (
         <div className="details-container">
@@ -419,61 +480,7 @@ export default function GroupDetails({ session, group, onBack }) {
                             ) : (
                                 <>
                                     {/* 1. Debts involving YOU */}
-                                    {(() => {
-                                        const myDebts = debts[session.user.id] || {}
-                                        const otherUsers = members.filter(m => m.id !== session.user.id)
-                                        let hasDebts = false
-
-                                        const debtCards = otherUsers.map(user => {
-                                            const amountIOwe = myDebts[user.id] || 0
-                                            const amountTheyOwe = (debts[user.id] || {})[session.user.id] || 0
-
-                                            if (amountIOwe > 0.01) {
-                                                hasDebts = true
-                                                return (
-                                                    <div key={user.id} className="debt-card owe" onClick={() => openSettleModalWithData({ receiver: user.id, amount: amountIOwe, locked: true })}>
-                                                        <div className="debt-info">
-                                                            <div className="debt-text">
-                                                                <span>You owe <strong>{user.name}</strong></span>
-                                                            </div>
-                                                        </div>
-                                                        <span className="debt-amount negative">
-                                                            {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
-                                                            {amountIOwe.toFixed(2)}
-                                                        </span>
-                                                    </div>
-                                                )
-                                            }
-
-                                            if (amountTheyOwe > 0.01) {
-                                                hasDebts = true
-                                                return (
-                                                    <div key={user.id} className="debt-card owed" onClick={() => openSettleModalWithData({ payer: user.id, receiver: session.user.id, amount: amountTheyOwe, locked: true })} style={{ cursor: 'pointer' }}>
-                                                        <div className="debt-info">
-                                                            <div className="debt-text">
-                                                                <span><strong>{user.name}</strong> owes you</span>
-                                                            </div>
-                                                        </div>
-                                                        <span className="debt-amount positive">
-                                                            {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
-                                                            {amountTheyOwe.toFixed(2)}
-                                                        </span>
-                                                    </div>
-                                                )
-                                            }
-                                            return null
-                                        })
-
-                                        if (!hasDebts) {
-                                            return (
-                                                <div className="empty-debts">
-                                                    <p>✨ You are all settled up! No pending debts.</p>
-                                                </div>
-                                            )
-                                        }
-
-                                        return debtCards
-                                    })()}
+                                    {myDebtsDisplay}
                                 </>
                             )}
                         </div>
@@ -512,6 +519,17 @@ export default function GroupDetails({ session, group, onBack }) {
                                             })() : expense.description}
                                         </h4>
                                         <p>
+                                            {expense.category !== 'settlement' && new Date(expense.updated_at || expense.date).getTime() > new Date(expense.created_at || expense.date).getTime() + 60000 && (
+                                                <span style={{
+                                                    fontSize: '0.85em',
+                                                    fontWeight: '600',
+                                                    display: 'block',
+                                                    marginBottom: '2px',
+                                                    color: '#ef4444'
+                                                }}>
+                                                    Edited {expense.updated_by_profile ? `by ${expense.updated_by_profile.full_name.split(' ')[0]}` : ''}
+                                                </span>
+                                            )}
                                             {expense.category === 'settlement' ? (
                                                 /* Status Display instead of Notes */
                                                 <span style={{
@@ -538,7 +556,7 @@ export default function GroupDetails({ session, group, onBack }) {
                                         </p>
                                     </div>
                                     <div className="expense-amount">
-                                        <span className="amount">
+                                        <span className={`amount ${expense.category === 'settlement' ? '' : (expense.paid_by === session.user.id ? 'positive' : 'negative')}`}>
                                             {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' :
                                                 currentGroup.currency === 'EUR' ? '€' :
                                                     currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}

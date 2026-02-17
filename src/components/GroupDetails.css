@@ -1,9 +1,11 @@
 /* Minimal Group Details */
 
 .details-container {
-    max-width: 800px;
+    /* Shell handles max-width */
     margin: 0 auto;
     padding: 12px;
+    padding-bottom: 20px;
+    /* Extra breathing room at bottom above nav */
 }
 
 /* Header */
@@ -159,7 +161,8 @@
 .expense-item {
     display: flex;
     align-items: center;
-    padding: 12px 0;
+    padding: 8px 0;
+    /* Compact */
     border-bottom: 1px solid var(--border-color);
     background: transparent;
     border-radius: 0;
@@ -175,13 +178,15 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: var(--bg-card);
+    background: transparent;
+    /* Clean look */
     width: 42px;
     height: 42px;
     border-radius: 8px;
-    margin-right: 12px;
+    margin-right: 8px;
+    /* Tighter */
     flex-shrink: 0;
-    border: 1px solid var(--border-color);
+    border: none;
 }
 
 .expense-date .month {
@@ -224,11 +229,30 @@
 
 /* Amount */
 .expense-amount {
-    font-weight: 700;
-    font-size: 1rem;
-    color: var(--text-primary);
     padding-left: 12px;
     text-align: right;
+}
+
+.expense-amount .amount {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.expense-amount .amount.positive {
+    color: var(--success);
+}
+
+.expense-amount .amount.negative {
+    color: var(--danger);
+}
+
+.edited-tag {
+    font-size: 0.7rem;
+    color: var(--danger);
+    margin-left: 4px;
+    font-style: italic;
+    opacity: 0.8;
 }
 
 .settlement-item {
