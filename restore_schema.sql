@@ -35,7 +35,8 @@ create table if not exists profiles (
   avatar_url text,
   upi_id text,
   country text default 'IND',
-  updated_at timestamp with time zone
+  updated_at timestamp with time zone,
+  cleared_at timestamp with time zone
 );
 
 -- Groups

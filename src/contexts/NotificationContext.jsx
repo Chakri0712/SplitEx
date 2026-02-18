@@ -21,6 +21,28 @@ export function NotificationProvider({ children, session }) {
     // Close toast
     const closeToast = () => setToast(null)
 
+    // 4. Local Cleared State (Now DB Persisted)
+    const clearNotifications = async () => {
+        if (!session?.user?.id) return
+
+        const now = new Date().toISOString()
+
+        // Optimistic Update
+        setNotifications([])
+        setUnreadCount(0)
+
+        // DB Update
+        const { error } = await supabase
+            .from('profiles')
+            .update({ cleared_at: now })
+            .eq('id', session.user.id)
+
+        if (error) {
+            console.error('Error updating cleared_at:', error)
+            showToast('Failed to clear activity permanently', 'error')
+        }
+    }
+
     useEffect(() => {
         if (!session?.user) {
             setNotifications([])
@@ -30,8 +52,18 @@ export function NotificationProvider({ children, session }) {
 
         const userId = session.user.id
 
-        // 1. Fetch initial notifications
-        const fetchNotifications = async () => {
+        // 1. Fetch initial notifications & cleared_at
+        const fetchData = async () => {
+            // Fetch cleared_at from profile
+            const { data: profileData } = await supabase
+                .from('profiles')
+                .select('cleared_at')
+                .eq('id', userId)
+                .single()
+
+            const clearedTime = profileData?.cleared_at
+
+            // Fetch notifications
             const { data, error } = await supabase
                 .from('notifications')
                 .select('*')
@@ -40,12 +72,17 @@ export function NotificationProvider({ children, session }) {
                 .limit(50)
 
             if (!error && data) {
-                setNotifications(data)
-                setUnreadCount(data.filter(n => !n.is_read).length)
+                // Filter out notifications older than clearedTime
+                const validNotifications = clearedTime
+                    ? data.filter(n => new Date(n.created_at) > new Date(clearedTime))
+                    : data
+
+                setNotifications(validNotifications)
+                setUnreadCount(validNotifications.filter(n => !n.is_read).length)
             }
         }
 
-        fetchNotifications()
+        fetchData()
 
         // 2. Subscribe to Realtime changes
         const subscription = supabase
@@ -61,7 +98,7 @@ export function NotificationProvider({ children, session }) {
                 (payload) => {
                     const newNotification = payload.new
 
-                    // Add to list
+                    // Always show new incoming notifications (they are newer than clearedTime)
                     setNotifications(prev => [newNotification, ...prev])
                     setUnreadCount(prev => prev + 1)
 
@@ -91,6 +128,8 @@ export function NotificationProvider({ children, session }) {
     }
 
     const markAllAsRead = async () => {
+        if (!session?.user) return
+
         // Optimistic
         setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
         setUnreadCount(0)
@@ -101,12 +140,6 @@ export function NotificationProvider({ children, session }) {
             .update({ is_read: true })
             .eq('user_id', session.user.id)
             .eq('is_read', false)
-    }
-
-
-    const clearNotifications = () => {
-        setNotifications([])
-        setUnreadCount(0)
     }
 
     const value = {
