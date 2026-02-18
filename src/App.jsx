@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense, lazy } from 'react'
 import { supabase } from './supabaseClient'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import Auth from './components/Auth'
 import AppShell from './components/AppShell'
-import Dashboard from './components/Dashboard'
-import GroupDetailsWrapper from './components/GroupDetailsWrapper'
 import LandingPage from './components/LandingPage'
-import Profile from './components/Profile'
-import ActivityList from './components/ActivityList'
 import { NotificationProvider } from './contexts/NotificationContext'
+
+// Lazy-loaded route components — only downloaded when the route is visited
+const Auth = lazy(() => import('./components/Auth'))
+const Dashboard = lazy(() => import('./components/Dashboard'))
+const GroupDetailsWrapper = lazy(() => import('./components/GroupDetailsWrapper'))
+const Profile = lazy(() => import('./components/Profile'))
+const ActivityList = lazy(() => import('./components/ActivityList'))
 
 function App() {
     const [session, setSession] = useState(null)
@@ -35,31 +37,33 @@ function App() {
 
     return (
         <Router>
-            <Routes>
-                {/* Global App Shell */}
-                <Route element={
-                    <NotificationProvider session={session}>
-                        <AppShell session={session} />
-                    </NotificationProvider>
-                }>
-                    {/* Public Routes */}
-                    <Route path="/" element={<LandingPage session={session} />} />
+            <Suspense fallback={<div className="loading-state">Loading...</div>}>
+                <Routes>
+                    {/* Global App Shell */}
+                    <Route element={
+                        <NotificationProvider session={session}>
+                            <AppShell session={session} />
+                        </NotificationProvider>
+                    }>
+                        {/* Public Routes */}
+                        <Route path="/" element={<LandingPage session={session} />} />
 
-                    <Route
-                        path="/auth"
-                        element={!session ? <Auth /> : <Navigate to="/dashboard" replace />}
-                    />
+                        <Route
+                            path="/auth"
+                            element={!session ? <Auth /> : <Navigate to="/dashboard" replace />}
+                        />
 
-                    {/* Protected Routes */}
-                    <Route path="/dashboard" element={session ? <Dashboard session={session} /> : <Navigate to="/" replace />} />
-                    <Route path="/activity" element={session ? <ActivityList /> : <Navigate to="/" replace />} />
-                    <Route path="/group/:groupId" element={session ? <GroupDetailsWrapper session={session} /> : <Navigate to="/" replace />} />
-                    <Route path="/profile" element={session ? <Profile session={session} /> : <Navigate to="/" replace />} />
+                        {/* Protected Routes */}
+                        <Route path="/dashboard" element={session ? <Dashboard session={session} /> : <Navigate to="/" replace />} />
+                        <Route path="/activity" element={session ? <ActivityList /> : <Navigate to="/" replace />} />
+                        <Route path="/group/:groupId" element={session ? <GroupDetailsWrapper session={session} /> : <Navigate to="/" replace />} />
+                        <Route path="/profile" element={session ? <Profile session={session} /> : <Navigate to="/" replace />} />
 
-                    {/* Catch all */}
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Route>
-            </Routes>
+                        {/* Catch all */}
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Route>
+                </Routes>
+            </Suspense>
         </Router>
     )
 }

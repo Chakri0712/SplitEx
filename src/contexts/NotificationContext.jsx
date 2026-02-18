@@ -104,11 +104,17 @@ export function NotificationProvider({ children, session }) {
     }
 
 
+    const clearNotifications = () => {
+        setNotifications([])
+        setUnreadCount(0)
+    }
+
     const value = {
         notifications,
         unreadCount,
         markAsRead,
         markAllAsRead,
+        clearNotifications,
         showToast
     }
 

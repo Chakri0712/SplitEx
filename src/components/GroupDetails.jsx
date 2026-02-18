@@ -1,6 +1,7 @@
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
+import { getCurrencySymbol } from '../utils/currency'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info, HandCoins, ArrowRight } from 'lucide-react'
 import AddExpenseModal from './AddExpenseModal'
@@ -51,26 +52,29 @@ export default function GroupDetails({ session, group, onBack }) {
 
     const fetchData = async () => {
         try {
-            const { data: expensesData, error: expensesError } = await supabase
-                .from('expenses')
-                .select(`
+            // Phase 1: Parallel — expenses and members are independent
+            const [expensesResult, membersResult] = await Promise.all([
+                supabase
+                    .from('expenses')
+                    .select(`
           *,
           paid_by_profile:paid_by (full_name),
           created_by_profile:created_by (full_name),
           updated_by_profile:updated_by (full_name)
         `)
-                .eq('group_id', currentGroup.id)
-                .order('date', { ascending: false })
+                    .eq('group_id', currentGroup.id)
+                    .order('date', { ascending: false }),
+                supabase
+                    .from('group_members')
+                    .select('user_id, profiles(full_name, avatar_url)')
+                    .eq('group_id', currentGroup.id)
+            ])
 
-            if (expensesError) throw expensesError
+            if (expensesResult.error) throw expensesResult.error
+            if (membersResult.error) throw membersResult.error
 
-            // Fetch current members
-            const { data: membersData, error: membersError } = await supabase
-                .from('group_members')
-                .select('user_id, profiles(full_name, avatar_url)')
-                .eq('group_id', currentGroup.id)
-
-            if (membersError) throw membersError
+            const expensesData = expensesResult.data
+            const membersData = membersResult.data
 
             const expenseIds = (expensesData || []).map(e => e.id)
             if (expenseIds.length === 0) {
@@ -87,41 +91,52 @@ export default function GroupDetails({ session, group, onBack }) {
                 return
             }
 
-            const { data: splits, error: splitsErr } = await supabase
-                .from('expense_splits')
-                .select('user_id, owe_amount, expense_id')
-                .in('expense_id', expenseIds)
+            // Phase 2: Parallel — splits and settlements both depend only on expenseIds
+            const [splitsResult, settlementsResult] = await Promise.all([
+                supabase
+                    .from('expense_splits')
+                    .select('user_id, owe_amount, expense_id')
+                    .in('expense_id', expenseIds),
+                supabase
+                    .from('settlement_details')
+                    .select('expense_id, settlement_status, settlement_method')
+                    .in('expense_id', expenseIds)
+            ])
 
-            if (splitsErr) throw splitsErr
+            if (splitsResult.error) throw splitsResult.error
+            const splits = splitsResult.data
+
+            // Build Maps for O(1) lookups
+            const splitsByExpenseId = new Map()
+            splits?.forEach(s => {
+                if (!splitsByExpenseId.has(s.expense_id)) {
+                    splitsByExpenseId.set(s.expense_id, [])
+                }
+                splitsByExpenseId.get(s.expense_id).push(s)
+            })
 
             // Fetch ALL settlement details for these expenses to track status
             let settlementStatusMap = {}
             let excludedExpenseIds = new Set()
 
-            if (expenseIds && expenseIds.length > 0) {
-                const { data: allSettlements } = await supabase
-                    .from('settlement_details')
-                    .select('expense_id, settlement_status, settlement_method')
-                    .in('expense_id', expenseIds)
-
-                allSettlements?.forEach(s => {
-                    settlementStatusMap[s.expense_id] = {
-                        status: s.settlement_status,
-                        method: s.settlement_method
-                    }
-                    // Exclude from calculations if not confirmed
-                    if (s.settlement_status !== 'confirmed') {
-                        excludedExpenseIds.add(s.expense_id)
-                    }
-                })
-            }
+            settlementsResult.data?.forEach(s => {
+                settlementStatusMap[s.expense_id] = {
+                    status: s.settlement_status,
+                    method: s.settlement_method
+                }
+                // Exclude from calculations if not confirmed
+                if (s.settlement_status !== 'confirmed') {
+                    excludedExpenseIds.add(s.expense_id)
+                }
+            })
 
             // Enhanced expenses with settlement status and involved check
             const enhancedExpenses = (expensesData || []).map(e => {
+                const expSplits = splitsByExpenseId.get(e.id) || []
                 // Determine if currentUser is involved in this expense (via splits)
-                const mySplit = splits?.find(s => s.expense_id === e.id && s.user_id === session.user.id)
+                const mySplit = expSplits.find(s => s.user_id === session.user.id)
                 // Find receiver (the one who split matches but is not the payer)
-                const receiverSplit = splits?.find(s => s.expense_id === e.id && s.user_id !== e.paid_by)
+                const receiverSplit = expSplits.find(s => s.user_id !== e.paid_by)
 
                 return {
                     ...e,
@@ -152,7 +167,7 @@ export default function GroupDetails({ session, group, onBack }) {
 
             const uniqueUserIds = Array.from(allInvolvedUserIds)
 
-            // Fetch profiles for everyone involved
+            // Phase 3: Fetch profiles for everyone involved
             const { data: profilesData, error: profilesError } = await supabase
                 .from('profiles')
                 .select('id, full_name, avatar_url, upi_id, country')
@@ -192,6 +207,10 @@ export default function GroupDetails({ session, group, onBack }) {
 
             setMembers(historicalMembers)
 
+            // Build expense Map for O(1) lookups in spending/debt calculations
+            const activeExpenseMap = new Map()
+            activeExpenses.forEach(e => activeExpenseMap.set(e.id, e))
+
             // Calculate member spending based on their SHARE (owe_amount)
             const spendingMap = {}
             let totalExpenses = 0
@@ -203,7 +222,7 @@ export default function GroupDetails({ session, group, onBack }) {
             })
 
             activeSplits.forEach(split => {
-                const expense = activeExpenses.find(e => e.id === split.expense_id)
+                const expense = activeExpenseMap.get(split.expense_id)
                 if (expense && expense.category !== 'settlement') {
                     if (!spendingMap[split.user_id]) {
                         spendingMap[split.user_id] = 0
@@ -238,7 +257,7 @@ export default function GroupDetails({ session, group, onBack }) {
 
             activeSplits.forEach(split => {
                 const debtorId = split.user_id
-                const expense = activeExpenses.find(e => e.id === split.expense_id)
+                const expense = activeExpenseMap.get(split.expense_id)
                 if (!expense) return
 
                 const payerId = expense.paid_by
@@ -271,24 +290,24 @@ export default function GroupDetails({ session, group, onBack }) {
         }
     }
 
-    const handleDataChanged = () => {
+    const handleDataChanged = useCallback(() => {
         fetchData()
-    }
+    }, [currentGroup.id])
 
-    const handleGroupUpdated = (updatedGroup) => {
+    const handleGroupUpdated = useCallback((updatedGroup) => {
         setCurrentGroup(updatedGroup)
-    }
+    }, [])
 
-    const handleEditExpense = (expense) => {
+    const handleEditExpense = useCallback((expense) => {
         setExpenseToEdit(expense)
         if (expense.category === 'settlement') {
             setIsSettleModalOpen(true)
         } else {
             setIsExpenseModalOpen(true)
         }
-    }
+    }, [])
 
-    const handleDeleteExpense = async (expenseId) => {
+    const handleDeleteExpense = useCallback(async (expenseId) => {
         try {
             const { error } = await supabase
                 .from('expenses')
@@ -301,23 +320,23 @@ export default function GroupDetails({ session, group, onBack }) {
             console.error('Error deleting expense:', error)
             alert('Failed to delete expense')
         }
-    }
+    }, [handleDataChanged])
 
-    const closeExpenseModal = () => {
+    const closeExpenseModal = useCallback(() => {
         setIsExpenseModalOpen(false)
         setExpenseToEdit(null)
-    }
+    }, [])
 
-    const closeSettleModal = () => {
+    const closeSettleModal = useCallback(() => {
         setIsSettleModalOpen(false)
         setExpenseToEdit(null)
         setInitialSettlementData(null)
-    }
+    }, [])
 
-    const openSettleModalWithData = (data) => {
+    const openSettleModalWithData = useCallback((data) => {
         setInitialSettlementData(data)
         setIsSettleModalOpen(true)
-    }
+    }, [])
 
     // --- RENDER LOGIC for Filtered List ---
     const filteredExpenses = useMemo(() => {
@@ -359,7 +378,7 @@ export default function GroupDetails({ session, group, onBack }) {
                             </div>
                         </div>
                         <span className="debt-amount negative">
-                            {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
+                            {getCurrencySymbol(currentGroup.currency)}
                             {amountIOwe.toFixed(2)}
                         </span>
                     </div>
@@ -376,7 +395,7 @@ export default function GroupDetails({ session, group, onBack }) {
                             </div>
                         </div>
                         <span className="debt-amount positive">
-                            {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' : currentGroup.currency === 'EUR' ? '€' : currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
+                            {getCurrencySymbol(currentGroup.currency)}
                             {amountTheyOwe.toFixed(2)}
                         </span>
                     </div>
@@ -557,9 +576,7 @@ export default function GroupDetails({ session, group, onBack }) {
                                     </div>
                                     <div className="expense-amount">
                                         <span className={`amount ${expense.category === 'settlement' ? '' : (expense.paid_by === session.user.id ? 'positive' : 'negative')}`}>
-                                            {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' :
-                                                currentGroup.currency === 'EUR' ? '€' :
-                                                    currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
+                                            {getCurrencySymbol(currentGroup.currency)}
                                             {expense.amount}
                                         </span>
                                     </div>
@@ -600,9 +617,7 @@ export default function GroupDetails({ session, group, onBack }) {
                             <div className="total-card">
                                 <h3>Total Group Expenses</h3>
                                 <div className="total-amount">
-                                    {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' :
-                                        currentGroup.currency === 'EUR' ? '€' :
-                                            currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
+                                    {getCurrencySymbol(currentGroup.currency)}
                                     {expenses
                                         .filter(exp => exp.category !== 'settlement')
                                         .reduce((sum, exp) => sum + parseFloat(exp.amount), 0).toFixed(2)}
@@ -632,9 +647,7 @@ export default function GroupDetails({ session, group, onBack }) {
                                                     <span className="member-percentage">{member.percentage.toFixed(1)}%</span>
                                                 </div>
                                                 <div className="member-amount">
-                                                    {currentGroup.currency === 'USD' || currentGroup.currency === 'CAD' ? '$' :
-                                                        currentGroup.currency === 'EUR' ? '€' :
-                                                            currentGroup.currency === 'INR' ? '₹' : currentGroup.currency}
+                                                    {getCurrencySymbol(currentGroup.currency)}
                                                     {member.spent.toFixed(2)}
                                                 </div>
                                             </div>

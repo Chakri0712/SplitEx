@@ -1,28 +1,15 @@
 import React from 'react'
 import { X, Pencil, Trash2, Calendar, User, CreditCard } from 'lucide-react'
+import { getCurrencySymbol } from '../utils/currency'
+import { formatDate, getMemberName } from '../utils/formatters'
 import './AddExpenseModal.css' // Reusing modal styles
 
 export default function ExpenseDetailsModal({ expense, group, members, currentUser, onClose, onEdit, onDelete }) {
     if (!expense) return null
 
-    const formatDate = (dateStr) => {
-        return new Date(dateStr).toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        })
-    }
+    const getDisplayName = (id) => getMemberName(id, currentUser.id, members)
 
-    const getMemberName = (id) => {
-        if (id === currentUser.id) return 'You'
-        const member = members.find(m => m.id === id)
-        return member ? member.name : 'Unknown'
-    }
-
-    const currencySymbol = group.currency === 'USD' || group.currency === 'CAD' ? '$' :
-        group.currency === 'EUR' ? '€' :
-            group.currency === 'INR' ? '₹' : group.currency
+    const currencySymbol = getCurrencySymbol(group.currency)
 
     // Calculate splits if available (passed in expense object or need fetching? 
     // Usually GroupDetails fetches basic info. We might need to pass splits or fetch them here if not present.
@@ -61,7 +48,7 @@ export default function ExpenseDetailsModal({ expense, group, members, currentUs
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <CreditCard size={14} /> Paid By
                             </span>
-                            <span style={{ fontWeight: '600', fontSize: '1rem' }}>{getMemberName(expense.paid_by)}</span>
+                            <span style={{ fontWeight: '600', fontSize: '1rem' }}>{getDisplayName(expense.paid_by)}</span>
                         </div>
 
                         <div className="detail-item">
@@ -69,7 +56,7 @@ export default function ExpenseDetailsModal({ expense, group, members, currentUs
                                 <User size={14} /> Added By
                             </span>
                             <span style={{ fontWeight: '600', fontSize: '1rem' }}>
-                                {expense.created_by ? getMemberName(expense.created_by) : <span style={{ fontStyle: 'italic', opacity: 0.7 }}>Unknown</span>}
+                                {expense.created_by ? getDisplayName(expense.created_by) : <span style={{ fontStyle: 'italic', opacity: 0.7 }}>Unknown</span>}
                             </span>
                         </div>
 

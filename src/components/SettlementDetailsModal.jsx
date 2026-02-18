@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, Check, Clock, AlertCircle, Smartphone, HandCoins, Loader2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import { getMemberName as _getMemberName } from '../utils/formatters'
 import './SettlementDetailsModal.css'
 
 export default function SettlementDetailsModal({ expense, currentUser, members, group, onClose, onUpdate }) {
@@ -51,8 +52,7 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
 
     const getMemberName = (id) => {
         if (!id) return 'Unknown'
-        if (id === currentUser.id) return 'You'
-        return members.find(m => m.id === id)?.name || 'Unknown'
+        return _getMemberName(id, currentUser.id, members)
     }
 
     const formatDate = (dateStr) => {

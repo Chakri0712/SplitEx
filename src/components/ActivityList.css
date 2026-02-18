@@ -160,3 +160,52 @@
 .back-btn:active {
     background: rgba(255, 215, 0, 0.1);
 }
+
+.activity-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 8px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.icon-btn:active {
+    background: var(--bg-card);
+    transform: scale(0.95);
+    color: var(--primary);
+}
+
+.icon-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.icon-btn.mark-read-btn {
+    color: var(--primary);
+    /* Gold */
+    border-color: rgba(255, 215, 0, 0.3);
+}
+
+.icon-btn.mark-read-btn:hover {
+    background: rgba(255, 215, 0, 0.1);
+}
+
+.icon-btn.clear-btn {
+    color: var(--danger);
+    /* Red */
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.icon-btn.clear-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+}

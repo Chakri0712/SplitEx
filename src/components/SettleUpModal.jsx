@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabaseClient'
+import { getCurrencySymbol } from '../utils/currency'
 import { X, Loader2, ArrowRight, Trash2, HandCoins } from 'lucide-react'
 import './SettleUpModal.css'
 
@@ -93,8 +94,11 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
         if (!splits) return
 
         const netBalances = {}
+        const validExpenseMap = new Map()
+        validExpenses.forEach(e => validExpenseMap.set(e.id, e))
+
         splits.forEach(split => {
-            const expense = validExpenses.find(e => e.id === split.expense_id)
+            const expense = validExpenseMap.get(split.expense_id)
             if (!expense) return
             const payerId = expense.paid_by
             const debtorId = split.user_id
@@ -398,7 +402,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                         <div className="amount-group">
                             <label>Amount</label>
                             <div className="currency-input">
-                                <span className="currency-symbol">{group.currency === 'USD' || group.currency === 'CAD' ? '$' : group.currency === 'EUR' ? '€' : group.currency === 'INR' ? '₹' : group.currency}</span>
+                                <span className="currency-symbol">{getCurrencySymbol(group.currency)}</span>
                                 <input
                                     type="text"
                                     inputMode="decimal"

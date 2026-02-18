@@ -1,11 +1,11 @@
 import React from 'react'
 import { useNotifications } from '../contexts/NotificationContext'
 import { useNavigate } from 'react-router-dom'
-import { Bell, CheckCircle, ArrowLeft } from 'lucide-react'
+import { Bell, CheckCircle, ArrowLeft, Trash2 } from 'lucide-react'
 import './ActivityList.css'
 
 export default function ActivityList() {
-    const { notifications, markAsRead, markAllAsRead } = useNotifications()
+    const { notifications, markAsRead, markAllAsRead, clearNotifications } = useNotifications()
     const navigate = useNavigate()
 
     const handleNotificationClick = (n) => {
@@ -44,9 +44,14 @@ export default function ActivityList() {
                     </button>
                     <h2>Activity</h2>
                 </div>
-                <button className="mark-all-btn" onClick={markAllAsRead}>
-                    <CheckCircle size={16} /> Mark all read
-                </button>
+                <div className="activity-actions">
+                    <button className="icon-btn mark-read-btn" onClick={markAllAsRead} title="Mark all read">
+                        <CheckCircle size={20} />
+                    </button>
+                    <button className="icon-btn clear-btn" onClick={clearNotifications} title="Clear activity">
+                        <Trash2 size={20} />
+                    </button>
+                </div>
             </div>
 
             <div className="activity-list">
