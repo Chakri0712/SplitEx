@@ -1,17 +1,20 @@
 import React from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Home, User, Activity } from 'lucide-react'
+import { useNotifications } from '../contexts/NotificationContext'
 import './AppShell.css'
 
 export default function AppShell({ session }) {
     const navigate = useNavigate()
     const location = useLocation()
+    const { unreadCount } = useNotifications()
 
     // Determine active tab based on path
     const getActiveTab = (path) => {
         if (path === '/') return 'home'
-        if (path === '/dashboard') return 'activity'
-        if (path.startsWith('/group/')) return 'activity'
+        if (path === '/dashboard') return 'home' // Dashboard is now the "Home" view for users
+        if (path === '/activity') return 'activity'
+        if (path.startsWith('/group/')) return 'home' // Groups are part of Home flow
         if (path === '/profile') return 'profile'
         return 'home'
     }
@@ -30,7 +33,7 @@ export default function AppShell({ session }) {
                 <nav className="bottom-nav">
                     <button
                         className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`}
-                        onClick={() => navigate('/')}
+                        onClick={() => navigate('/dashboard')}
                     >
                         {activeTab === 'home' && <div className="nav-indicator" />}
                         <Home size={24} strokeWidth={activeTab === 'home' ? 2.5 : 2} />
@@ -39,11 +42,15 @@ export default function AppShell({ session }) {
 
                     <button
                         className={`nav-tab ${activeTab === 'activity' ? 'active' : ''}`}
-                        onClick={() => navigate('/dashboard')}
+                        onClick={() => navigate('/activity')}
+                        style={{ position: 'relative' }}
                     >
                         {activeTab === 'activity' && <div className="nav-indicator" />}
                         <Activity size={24} strokeWidth={activeTab === 'activity' ? 2.5 : 2} />
                         <span>Activity</span>
+                        {unreadCount > 0 && (
+                            <span className="nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                        )}
                     </button>
 
                     <button

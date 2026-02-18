@@ -7,6 +7,8 @@ import Dashboard from './components/Dashboard'
 import GroupDetailsWrapper from './components/GroupDetailsWrapper'
 import LandingPage from './components/LandingPage'
 import Profile from './components/Profile'
+import ActivityList from './components/ActivityList'
+import { NotificationProvider } from './contexts/NotificationContext'
 
 function App() {
     const [session, setSession] = useState(null)
@@ -35,7 +37,11 @@ function App() {
         <Router>
             <Routes>
                 {/* Global App Shell */}
-                <Route element={<AppShell session={session} />}>
+                <Route element={
+                    <NotificationProvider session={session}>
+                        <AppShell session={session} />
+                    </NotificationProvider>
+                }>
                     {/* Public Routes */}
                     <Route path="/" element={<LandingPage session={session} />} />
 
@@ -46,6 +52,7 @@ function App() {
 
                     {/* Protected Routes */}
                     <Route path="/dashboard" element={session ? <Dashboard session={session} /> : <Navigate to="/" replace />} />
+                    <Route path="/activity" element={session ? <ActivityList /> : <Navigate to="/" replace />} />
                     <Route path="/group/:groupId" element={session ? <GroupDetailsWrapper session={session} /> : <Navigate to="/" replace />} />
                     <Route path="/profile" element={session ? <Profile session={session} /> : <Navigate to="/" replace />} />
 

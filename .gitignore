@@ -126,3 +126,7 @@ dist
 # OS
 .DS_Store
 Thumbs.db
+Prompts/
+
+#Prompts
+.Prompts/

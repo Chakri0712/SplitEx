@@ -8,6 +8,7 @@
 
 -- 1. CLEANUP (Drop tables in correct dependency order)
 DROP TABLE IF EXISTS settlement_details CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE; -- Added cleanup
 DROP TABLE IF EXISTS expense_splits CASCADE;
 DROP TABLE IF EXISTS expenses CASCADE;
 DROP TABLE IF EXISTS group_members CASCADE;
@@ -261,3 +262,154 @@ ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
     full_name = EXCLUDED.full_name,
     avatar_url = EXCLUDED.avatar_url;
+
+-- ============================================================================
+-- 4. NOTIFICATIONS SYSTEM (Integrated)
+-- ============================================================================
+
+-- 4.1 Create Table
+create table if not exists notifications (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references profiles(id) on delete cascade not null,
+  type text not null check (type in ('expense_created', 'expense_updated', 'expense_deleted', 'settlement_created', 'settlement_updated', 'settlement_deleted')),
+  title text not null,
+  message text not null,
+  data jsonb,
+  is_read boolean default false,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 4.2 Enable RLS & Realtime
+alter table notifications enable row level security;
+
+-- Enable Realtime (This might fail if already added, so we wrap in a block or just run it)
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'notifications') then
+    alter publication supabase_realtime add table notifications;
+  end if;
+end $$;
+
+-- 4.3 Policies
+create policy "View own notifications" on notifications for select using (auth.uid() = user_id);
+create policy "Update own notifications" on notifications for update using (auth.uid() = user_id);
+
+-- 4.4 Cleanup Trigger (7 Days Retention)
+create or replace function public.cleanup_notifications()
+returns trigger as $$
+begin
+  delete from notifications 
+  where user_id = new.user_id 
+  and created_at < now() - interval '2 days';
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger on_notification_created
+  after insert on notifications
+  for each row execute procedure public.cleanup_notifications();
+
+-- 4.5 Universal Expense Trigger (Insert/Update/Delete + Settlements)
+create or replace function public.handle_expense_changes()
+returns trigger as $$
+declare
+  target_user_id uuid;
+  group_name text;
+  record_data record;
+  is_settlement boolean;
+begin
+  if (TG_OP = 'DELETE') then record_data := old; else record_data := new; end if;
+  select name into group_name from groups where id = record_data.group_id;
+  is_settlement := (record_data.category = 'settlement');
+
+  if (TG_OP = 'INSERT') then
+    for target_user_id in 
+      select user_id from group_members where group_id = record_data.group_id and user_id != record_data.created_by
+    loop
+      insert into notifications (user_id, type, title, message, data)
+      values (
+        target_user_id,
+        CASE WHEN is_settlement THEN 'settlement_created' ELSE 'expense_created' END,
+        CASE WHEN is_settlement THEN 'New Settlement Request' ELSE 'New Expense in ' || group_name END,
+        CASE WHEN is_settlement THEN 'Settlement of ' || record_data.amount || ' proposed' ELSE 'Added: ' || record_data.description || ' (' || record_data.amount || ')' END,
+        jsonb_build_object('group_id', record_data.group_id, 'expense_id', record_data.id)
+      );
+    end loop;
+    return new;
+  end if;
+
+  if (TG_OP = 'UPDATE' and not is_settlement) then
+    if (new.amount != old.amount or new.description != old.description) then
+       for target_user_id in 
+          select user_id from group_members where group_id = new.group_id and user_id != new.updated_by
+       loop
+          insert into notifications (user_id, type, title, message, data)
+          values (
+            target_user_id, 'expense_updated', 'Expense Updated', 'Updated: ' || new.description,
+            jsonb_build_object('group_id', new.group_id, 'expense_id', new.id)
+          );
+       end loop;
+    end if;
+    return new;
+  end if;
+
+  if (TG_OP = 'DELETE') then
+     for target_user_id in select user_id from group_members where group_id = old.group_id loop
+        insert into notifications (user_id, type, title, message, data)
+        values (
+          target_user_id,
+          CASE WHEN is_settlement THEN 'settlement_deleted' ELSE 'expense_deleted' END,
+          CASE WHEN is_settlement THEN 'Settlement Cancelled' ELSE 'Expense Deleted' END,
+          CASE WHEN is_settlement THEN 'Settlement of ' || old.amount || ' removed' ELSE 'Expense "' || old.description || '" removed' END,
+          jsonb_build_object('group_id', old.group_id)
+        );
+     end loop;
+     return old;
+  end if;
+  return null;
+end;
+$$ language plpgsql security definer;
+
+create trigger on_expense_change
+  after insert or update or delete on expenses
+  for each row execute procedure public.handle_expense_changes();
+
+-- 4.6 Settlement Status Trigger
+create or replace function public.handle_settlement_updates()
+returns trigger as $$
+declare
+  group_id uuid;
+  group_name text;
+  initiator_id uuid;
+  payer_id uuid;
+begin
+  select e.group_id, e.created_by, e.paid_by into group_id, initiator_id, payer_id
+  from expenses e where e.id = new.expense_id;
+  select name into group_name from groups where id = group_id;
+
+  if (new.settlement_status != old.settlement_status) then
+      -- Notify Initiator
+      insert into notifications (user_id, type, title, message, data)
+      values (
+        initiator_id, 'settlement_updated',
+        'Settlement ' || initcap(replace(new.settlement_status, '_', ' ')),
+        'Settlement in ' || group_name || ' is now ' || new.settlement_status,
+        jsonb_build_object('group_id', group_id, 'expense_id', new.expense_id)
+      );
+      -- Notify Payer if confirmed
+      if (payer_id != initiator_id AND new.settlement_status = 'confirmed') then
+        insert into notifications (user_id, type, title, message, data)
+        values (
+          payer_id, 'settlement_updated', 'Settlement Confirmed',
+          'Settlement in ' || group_name || ' is now confirmed',
+          jsonb_build_object('group_id', group_id, 'expense_id', new.expense_id)
+        );
+      end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger on_settlement_update
+  after update on settlement_details
+  for each row execute procedure public.handle_settlement_updates();
