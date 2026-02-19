@@ -92,6 +92,7 @@ create table if not exists settlement_details (
   initiated_at timestamp with time zone default now(),
   confirmed_by uuid references profiles(id),
   confirmed_at timestamp with time zone,
+  cross_group_batch_id uuid,
   created_at timestamp with time zone default now()
 );
 

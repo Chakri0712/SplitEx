@@ -11,6 +11,7 @@ const Dashboard = lazy(() => import('./components/Dashboard'))
 const GroupDetailsWrapper = lazy(() => import('./components/GroupDetailsWrapper'))
 const Profile = lazy(() => import('./components/Profile'))
 const ActivityList = lazy(() => import('./components/ActivityList'))
+const FriendsSummary = lazy(() => import('./components/FriendsSummary'))
 
 function App() {
     const [session, setSession] = useState(null)
@@ -58,6 +59,7 @@ function App() {
                         <Route path="/activity" element={session ? <ActivityList /> : <Navigate to="/" replace />} />
                         <Route path="/group/:groupId" element={session ? <GroupDetailsWrapper session={session} /> : <Navigate to="/" replace />} />
                         <Route path="/profile" element={session ? <Profile session={session} /> : <Navigate to="/" replace />} />
+                        <Route path="/friends" element={session ? <FriendsSummary session={session} /> : <Navigate to="/" replace />} />
 
                         {/* Catch all */}
                         <Route path="*" element={<Navigate to="/" replace />} />

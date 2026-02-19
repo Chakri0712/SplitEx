@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Github, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Activity, Users2 } from 'lucide-react';
 import './LandingPage.css';
 
 export default function LandingPage({ session }) {
@@ -81,6 +81,16 @@ export default function LandingPage({ session }) {
                         <CheckCircle2 className="feature-icon" />
                         <h3>Mobile Optimized</h3>
                         <p>Native mobile app feel. Works on any device, anywhere.</p>
+                    </div>
+                    <div className="feature-card">
+                        <Activity className="feature-icon" />
+                        <h3>Activity Feed</h3>
+                        <p>See a live feed of all group activity — expenses, settlements, and edits — in one place.</p>
+                    </div>
+                    <div className="feature-card">
+                        <Users2 className="feature-icon" />
+                        <h3>Cross-Group Settlements</h3>
+                        <p>Settle debts across multiple groups in one tap. Net balances with friends, no matter how many groups you share.</p>
                     </div>
                 </div>
             </section>

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Home, User, Activity } from 'lucide-react'
+import { Home, User, Activity, Users2 } from 'lucide-react'
 import { useNotifications } from '../contexts/NotificationContext'
 import './AppShell.css'
 
@@ -14,6 +14,7 @@ export default function AppShell({ session }) {
         if (path === '/') return 'home'
         if (path === '/dashboard') return 'home' // Dashboard is now the "Home" view for users
         if (path === '/activity') return 'activity'
+        if (path === '/friends') return 'friends'
         if (path.startsWith('/group/')) return 'home' // Groups are part of Home flow
         if (path === '/profile') return 'profile'
         return 'home'
@@ -30,7 +31,7 @@ export default function AppShell({ session }) {
 
             {/* Bottom Navigation - Only visible if logged in */}
             {session && (
-                <nav className="bottom-nav">
+                <nav className={`bottom-nav ${location.pathname.startsWith('/group/') ? 'nav-3col' : ''}`}>
                     <button
                         className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`}
                         onClick={() => navigate('/dashboard')}
@@ -52,6 +53,17 @@ export default function AppShell({ session }) {
                             <span className="nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
                         )}
                     </button>
+
+                    {!location.pathname.startsWith('/group/') && (
+                        <button
+                            className={`nav-tab ${activeTab === 'friends' ? 'active' : ''}`}
+                            onClick={() => navigate('/friends')}
+                        >
+                            {activeTab === 'friends' && <div className="nav-indicator" />}
+                            <Users2 size={24} strokeWidth={activeTab === 'friends' ? 2.5 : 2} />
+                            <span>Friends</span>
+                        </button>
+                    )}
 
                     <button
                         className={`nav-tab ${activeTab === 'profile' ? 'active' : ''}`}
