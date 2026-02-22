@@ -12,6 +12,7 @@ const GroupDetailsWrapper = lazy(() => import('./components/GroupDetailsWrapper'
 const Profile = lazy(() => import('./components/Profile'))
 const ActivityList = lazy(() => import('./components/ActivityList'))
 const FriendsSummary = lazy(() => import('./components/FriendsSummary'))
+const ResetPassword = lazy(() => import('./components/ResetPassword'))
 
 function App() {
     const [session, setSession] = useState(null)
@@ -40,6 +41,13 @@ function App() {
         <Router>
             <Suspense fallback={<div className="loading-state">Loading...</div>}>
                 <Routes>
+                    {/* Standalone Auth Routes (no AppShell) */}
+                    <Route
+                        path="/auth"
+                        element={!session ? <Auth /> : <Navigate to="/dashboard" replace />}
+                    />
+                    <Route path="/reset-password" element={<ResetPassword />} />
+
                     {/* Global App Shell */}
                     <Route element={
                         <NotificationProvider session={session}>
@@ -48,11 +56,6 @@ function App() {
                     }>
                         {/* Public Routes */}
                         <Route path="/" element={<LandingPage session={session} />} />
-
-                        <Route
-                            path="/auth"
-                            element={!session ? <Auth /> : <Navigate to="/dashboard" replace />}
-                        />
 
                         {/* Protected Routes */}
                         <Route path="/dashboard" element={session ? <Dashboard session={session} /> : <Navigate to="/" replace />} />

@@ -1,90 +1,157 @@
-# 🚀 End-to-End Deployment Guide for SplitEx
+# 🚀 SplitEx — Deployment Guide
 
-This guide covers how to deploy the **SplitEx** application from your local machine to the web.
-
-## Phase 1: Git & GitHub Setup
-
-1.  **Initialize Git:**
-    Open your terminal in the project folder:
-    ```bash
-    git init
-    ```
-
-2.  **Create `.gitignore`:**
-    (Already created) Ensure it includes `node_modules`, `.env`, `.DS_Store`, etc.
-
-3.  **Commit Code:**
-    ```bash
-    git add .
-    git commit -m "Initial commit of SplitEx"
-    ```
-
-4.  **Push to GitHub:**
-    -   Go to [GitHub.com](https://github.com) and create a new repository (e.g., `splitex-app`).
-    -   Copy the "Remote URL".
-    -   Run:
-        ```bash
-        git remote add origin https://github.com/YOUR_USERNAME/splitex-app.git
-        git branch -M main
-        git push -u origin main
-        ```
+This guide walks you through deploying SplitEx from scratch: database, email, and frontend hosting.
 
 ---
 
-## Phase 2: Backend (Supabase)
+## Phase 1 — Git & GitHub
 
-If you haven't already set up a production Supabase project:
+```bash
+# In the project folder:
+git init
+git add .
+git commit -m "Initial commit of SplitEx"
+```
 
-1.  **Create Project:**
-    -   Go to [Supabase.com](https://supabase.com).
-    -   Create a new project.
-    -   Note down the **Project URL** and **anon public key** (Settings -> API).
+Create a new repo on [GitHub](https://github.com/new) (e.g. `splitex-app`), then:
 
-2.  **Database Schema:**
-    -   Go to the **SQL Editor** in Supabase.
-    -   Copy the content of your local `master_schema.sql`.
-    -   Paste and run it to create the Tables and Policies.
-
-3.  **Authentication Settings:**
-    -   Go to **Authentication -> URL Configuration**.
-    -   **Site URL**: Initially `http://localhost:5173`. You will update this to your production URL later (e.g., `https://splitex.vercel.app`).
-    -   **Redirect URLs**: Add your production URL + `/**`.
+```bash
+git remote add origin https://github.com/YOUR_USERNAME/splitex-app.git
+git branch -M main
+git push -u origin main
+```
 
 ---
 
-## Phase 3: Frontend Deployment (Vercel)
+## Phase 2 — Supabase Backend
 
-We recommend **Vercel** for hosting React/Vite apps.
+### 2a. Create Project
+1. Go to [supabase.com](https://supabase.com) and create a new project.
+2. Note your **Project URL** and **anon public key** from **Settings → API**.
 
-1.  **Sign Up/Login:** Go to [Vercel.com](https://vercel.com) and login with GitHub.
-2.  **Add New Project:** Click "Add New..." -> "Project".
-3.  **Import Repository:** Select your `splitex-app` repo from the list.
-4.  **Configure Build:**
-    -   **Framework Preset**: Vite (should detect automatically).
-    -   **Root Directory**: `./` (default).
-    -   **Build Command**: `npm run build` (default).
-    -   **Output Directory**: `dist` (default).
-5.  **Environment Variables:**
-    Expand the "Environment Variables" section and add:
-    -   `VITE_SUPABASE_URL`: (Your Supabase Project URL)
-    -   `VITE_SUPABASE_ANON_KEY`: (Your Supabase Anon Key)
-6.  **Deploy:** Click "Deploy".
+### 2b. Run the Database Schema
+1. Open **SQL Editor** in your Supabase dashboard.
+2. Copy the full contents of `restore_schema.sql` and run it.
 
-Vercel will build your app and give you a live URL (e.g., `https://splitex-app.vercel.app`).
+This creates all tables, functions, RLS policies, and triggers:
+
+| Table | Purpose |
+|---|---|
+| `profiles` | Synced from `auth.users` via trigger |
+| `groups` | Expense groups |
+| `group_members` | Group membership |
+| `expenses` | All expense records |
+| `expense_splits` | Individual share per user per expense |
+| `settlement_details` | Settlement workflow state |
+| `notifications` | Real-time in-app notifications |
+
+### 2c. Auth URL Configuration
+Go to **Authentication → URL Configuration**:
+
+| Setting | Value |
+|---|---|
+| **Site URL** | `http://localhost:5173` *(update after deploy)* |
+| **Redirect URLs** | `http://localhost:5173/**` |
+
+> You will update both of these to your Vercel URL in Phase 4.
+
+### 2d. Enable Realtime
+Go to **Database → Replication** and ensure the `notifications` table is enabled for Realtime. The `restore_schema.sql` script attempts this automatically, but verify it in the dashboard.
 
 ---
 
-## Phase 4: Final Configuration
+## Phase 3 — Email (Brevo SMTP)
 
-1.  **Update Supabase Auth Redirects:**
-    -   Copy your new Vercel URL (e.g., `https://splitex-app.vercel.app`).
-    -   Go back to **Supabase Dashboard -> Authentication -> URL Configuration**.
-    -   Update **Site URL** to your Vercel URL.
-    -   Add `https://splitex-app.vercel.app/**` to **Redirect URLs**.
+SplitEx uses **Brevo** (formerly Sendinblue) as the SMTP provider for Supabase auth emails (sign-up confirmation, password reset).
 
-2.  **Test Production:**
-    -   Open your Vercel URL.
-    -   Sign up/Login.
-    -   Create a group and test the flow.
+### 3a. Create a Brevo Account
+1. Sign up at [brevo.com](https://www.brevo.com) (free tier: 300 emails/day).
+2. Go to **SMTP & API → SMTP**.
+3. Note your **SMTP server**, **port**, **login**, and **master password** (or create an SMTP key).
 
-**🎉 Congratulations! SplitEx is now live!**
+Typical Brevo SMTP settings:
+```
+Host:     smtp-relay.brevo.com
+Port:     587
+Login:    your-brevo-account@email.com
+Password: your-brevo-smtp-key
+```
+
+### 3b. Configure in Supabase
+1. In Supabase, go to **Authentication → Providers → Email**.
+2. Scroll down to **SMTP Settings** and enable **Custom SMTP**.
+3. Fill in the Brevo credentials from above.
+4. Set **Sender name** (e.g. `SplitEx`) and **Sender email** (must be a verified sender in Brevo).
+5. Save.
+
+### 3c. Customise Email Templates *(optional)*
+In **Authentication → Email Templates**, you can customise the subject and body for:
+- **Confirm signup**
+- **Reset password** — the link will redirect to `{{ .SiteURL }}/reset-password`
+- **Magic link**, **Change email**, etc.
+
+---
+
+## Phase 4 — Frontend Deployment (Vercel)
+
+1. Go to [vercel.com](https://vercel.com) and login with GitHub.
+2. Click **Add New → Project** and import your `splitex-app` repo.
+3. Vercel will auto-detect Vite. Confirm the settings:
+
+| Setting | Value |
+|---|---|
+| Framework Preset | Vite |
+| Root Directory | `./` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+
+4. Under **Environment Variables**, add:
+
+| Key | Value |
+|---|---|
+| `VITE_SUPABASE_URL` | Your Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Your Supabase anon key |
+
+5. Click **Deploy**.
+
+Vercel will build and give you a live URL, e.g. `https://split-ex-bay.vercel.app`.
+
+---
+
+## Phase 5 — Final Configuration
+
+### 5a. Update Supabase Auth URLs
+Go back to **Authentication → URL Configuration** and update:
+
+| Setting | Value |
+|---|---|
+| **Site URL** | `https://your-app.vercel.app` |
+| **Redirect URLs** | Add `https://your-app.vercel.app/**` |
+
+> This is required for password reset links to redirect to your live app instead of localhost.
+
+### 5b. Smoke Test
+- [ ] Visit your Vercel URL
+- [ ] Sign up with a new email — confirm the email arrives and is styled correctly
+- [ ] Login with your credentials
+- [ ] Create a group and add an expense
+- [ ] Invite another user via the invite code
+- [ ] Test Settle Up workflow
+- [ ] Use **Forgot Password** — confirm reset email arrives and the reset page works
+- [ ] Check the notification bell updates in real time across two sessions
+
+---
+
+## 🔁 Redeployments
+
+Push any code change to `main` and Vercel redeploys automatically. No manual steps needed.
+
+```bash
+git add .
+git commit -m "your change description"
+git push
+```
+
+---
+
+**🎉 SplitEx is live!**

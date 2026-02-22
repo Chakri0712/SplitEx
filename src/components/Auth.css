@@ -205,3 +205,21 @@
     margin-left: auto;
     margin-right: auto;
 }
+
+.forgot-link {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 4px 0;
+    margin-top: 0.25rem;
+    text-align: right;
+    display: block;
+    margin-left: auto;
+    transition: color 0.2s;
+}
+
+.forgot-link:hover {
+    color: var(--primary);
+}

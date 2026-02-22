@@ -1,95 +1,167 @@
 # SplitEx 💸
 
-**SplitEx** is a modern, premium web application for splitting expenses with friends and groups. Built with a "Mobile First" approach, it offers a seamless experience for tracking shared costs, settling debts, and managing group finances with a sleek, dark-themed UI.
+> **Split bills. Track debts. Settle smart.**
 
-![SplitEx Dashboard](https://via.placeholder.com/800x400?text=SplitEx+App+Preview)
+SplitEx is a premium, mobile-first Progressive Web App (PWA) for managing shared expenses across friend groups. Built with a sleek **Midnight Black + Gold** theme, it delivers a native app experience entirely in the browser — complete with real-time notifications, smart splitting, and a full settlement workflow.
 
-## ✨ Key Features
+**Live App →** [https://split-ex-bay.vercel.app](https://split-ex-bay.vercel.app)
 
--   **Create & Join Groups**: Easily create groups with custom currencies or join existing ones via invite codes.
--   **Expense Tracking**: Add expenses with details (amount, payer, date, description) and support for unequal splits.
--   **Smart Splitting**:
-    -   **Equal Splits**: Automatically divides costs among all members.
-    -   **Unequal Splits**: "Smart Lock" feature allows you to set specific amounts for some members while automatically redistributing the remainder to others.
--   **Balances & Settlements**:
-    -   View net balances (who owes whom).
-    -   "Settle Up" functionality to record payments between members.
-    -   Prevents users from leaving groups if they have outstanding debts.
--   **Modern UI/UX**:
-    -   **"Midnight Black + Gold"** Premium Theme.
-    -   Mobile-responsive design.
-    -   Dark mode native support.
-    -   Clean, list-based dashboard and expense views.
+---
+
+## ✨ Features
+
+### 💰 Expense Management
+- Add expenses with description, amount, category, date, and payer
+- **Equal Split** — auto-divides cost among all members
+- **Unequal Split** — "Smart Lock" lets you fix specific amounts; the remainder auto-distributes to others
+- Edit or delete expenses (any group member)
+
+### 🤝 Settlements
+- Full settlement workflow: Initiate → Submit UTR → Confirm → Done
+- Dispute and cancel flows with status tracking
+- Cross-group balance view on the **Friends** page (see net balances with any person across all mutual groups)
+- UPI ID support on profiles for easy payment reference
+- Users are blocked from leaving a group if they have an outstanding balance
+
+### 🔔 Real-Time Notifications
+- In-app notification bell with unread count badge
+- Notifications for: expense added/edited/deleted, settlement created/updated/cancelled
+- Powered by **Supabase Realtime** (PostgreSQL triggers → push to client)
+- Auto-cleanup: notifications older than 2 days are purged automatically
+
+### 👥 Groups
+- Create groups with custom currency and invite code
+- Join groups via 6-character invite code
+- Group settings: rename, change currency, manage members
+- Group admin can delete the group when all members have left
+
+### 🔐 Auth
+- Email + password sign-up and login
+- Email confirmation on sign-up
+- **Forgot Password** → reset link sent via email (Brevo SMTP)
+- Secure reset password page (`/reset-password`)
+
+### 📱 PWA
+- Installable on iOS and Android (Add to Home Screen)
+- Offline-capable shell via Workbox service worker
+- Optimized with code splitting — only downloads the JS for the page you visit
+
+### 🎨 UI / UX
+- **Midnight Black + Gold** premium theme
+- Framer Motion animations throughout
+- Fully responsive — designed mobile-first
+- Dark mode native (no toggle needed)
+
+---
 
 ## 🛠️ Tech Stack
 
--   **Frontend**: React (Vite)
--   **Styling**: Vanilla CSS (CSS Variables for theming)
--   **Backend / Database**: Supabase (PostgreSQL)
--   **Authentication**: Supabase Auth
--   **Icons**: Lucide React
--   **Hosting**: Vercel / Netlify (Recommended)
+| Layer | Technology |
+|---|---|
+| Frontend | React 19 + Vite 7 |
+| Routing | React Router v7 |
+| Animations | Framer Motion |
+| Icons | Lucide React |
+| Styling | Vanilla CSS (CSS Variables) |
+| Backend / DB | Supabase (PostgreSQL) |
+| Auth | Supabase Auth |
+| Email (SMTP) | Brevo (via Supabase custom SMTP) |
+| Realtime | Supabase Realtime |
+| PWA | vite-plugin-pwa (Workbox) |
+| Hosting | Vercel |
+
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
+- Node.js v18+
+- npm
+- A Supabase project ([free tier works fine](https://supabase.com))
 
--   Node.js (v16 or higher)
--   npm or yarn
--   A Supabase project (Free tier works great)
+### 1. Clone & Install
 
-### Installation
+```bash
+git clone https://github.com/your-username/splitex.git
+cd splitex
+npm install
+```
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/splitex.git
-    cd splitex
-    ```
+### 2. Environment Variables
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+Create a `.env` file in the project root:
 
-3.  **Environment Setup:**
-    Create a `.env` file in the root directory:
-    ```env
-    VITE_SUPABASE_URL=your_supabase_project_url
-    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-    ```
+```env
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-public-key
+```
 
-4.  **Database Setup:**
-    Run the SQL scripts provided in `master_schema.sql` in your Supabase SQL Editor to set up tables and Row Level Security (RLS) policies.
+Both values are in your Supabase dashboard under **Settings → API**.
 
-5.  **Run Locally:**
-    ```bash
-    npm run dev
-    ```
-    Open `http://localhost:5173` to view the app.
+### 3. Database Setup
 
-    > **Tip:** To access the app from your mobile device on the same network, run:
-    > ```bash
-    > npm run dev --host
-    > ```
-    > This exposes the app on your local IP address (e.g., `http://192.168.1.5:5173`).
+In your Supabase project, open the **SQL Editor** and run `restore_schema.sql` in full. This creates all tables, RLS policies, functions, and triggers — including the notification system.
+
+> **Tables created:** `profiles`, `groups`, `group_members`, `expenses`, `expense_splits`, `settlement_details`, `notifications`
+
+### 4. Supabase Auth Configuration
+
+In **Authentication → URL Configuration**:
+- **Site URL**: `http://localhost:5173` (update to your production URL after deploy)
+- **Redirect URLs**: Add `http://localhost:5173/**` and your production URL `/**`
+
+### 5. Run Locally
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173)
+
+> **Tip:** Run `npm run dev --host` to access from your phone on the same Wi-Fi network.
+
+---
 
 ## 📱 User Flow
 
-1.  **Sign Up/Login**: Users authenticate via email/password.
-2.  **Dashboard**: View a list of all your groups.
-3.  **Create/Join Group**: Start a new expense group or enter a code to join one.
-4.  **Add Expense**:
-    -   Click "+" to add a bill.
-    -   Select who paid and how to split (Equal/Unequal).
-5.  **Settle Up**:
-    -   Go to the "Balances" tab.
-    -   See who owes you or whom you owe.
-    -   Click "Settle" to record a payment.
+```
+Sign Up / Login
+    └── Confirm email
+         └── Dashboard (your groups)
+              ├── Create Group  ──→  Share invite code with friends
+              ├── Join Group   ──→  Enter invite code
+              └── Group View
+                   ├── Expenses tab  ──→  Add / Edit / Delete bills
+                   ├── Balances tab  ──→  See who owes whom
+                   └── Settle Up     ──→  Submit UTR → Confirm payment
+```
+
+---
 
 ## 🔒 Security
 
--   **RLS Policies**: Data is secured using Row Level Security. Users can only see groups they are members of.
--   **Debt Protection**: Users are prevented from leaving a group if they still owe money to others.
+- **Row Level Security (RLS)** on every table — users only see data for groups they belong to
+- All database mutations go through Supabase's authenticated client — the anon key is safe to expose
+- RLS `is_member_of()` function used as a reusable guard across policies
+- Debt protection: leaving a group with outstanding balances is blocked at the UI and database level
 
 ---
-Built with ❤️ by [Your Name]
+
+## 🗂️ Project Structure
+
+```
+src/
+├── components/        # All page and modal components
+├── contexts/          # NotificationContext (Supabase Realtime)
+├── utils/             # Shared helpers
+├── supabaseClient.js  # Supabase client initialisation
+├── App.jsx            # Routes
+└── index.css          # Global design tokens (CSS variables)
+
+restore_schema.sql     # Full DB schema + triggers + policies
+admin_queries.sql      # Useful admin/debug queries
+```
+
+---
+
+Built with ❤️ using React + Supabase

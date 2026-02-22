@@ -52,7 +52,7 @@ export default function Profile({ session }) {
         setError(null)
 
         // Validation
-        const validationError = validateName(fullName, "Full Name", 50)
+        const validationError = validateName(fullName, "User Name", 50)
         if (validationError) {
             setError(validationError)
             return

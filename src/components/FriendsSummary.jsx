@@ -402,7 +402,7 @@ export default function FriendsSummary({ session }) {
                                                 <div key={gb.groupId} className="breakdown-row">
                                                     <span className="breakdown-group">{gb.groupName}</span>
                                                     <span className={`breakdown-amount ${gb.net > 0 ? 'negative' : 'positive'}`}>
-                                                        {gb.net > 0 ? '-' : '+'}{currSym}{Math.abs(gb.net).toFixed(2)}
+                                                        {currSym}{Math.abs(gb.net).toFixed(2)}
                                                     </span>
                                                 </div>
                                             ))}

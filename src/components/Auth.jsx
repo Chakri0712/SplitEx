@@ -8,6 +8,7 @@ export default function Auth() {
     const location = useLocation()
     const [loading, setLoading] = useState(false)
     const [isLogin, setIsLogin] = useState(true)
+    const [isForgotPassword, setIsForgotPassword] = useState(false)
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [fullName, setFullName] = useState('')
@@ -27,6 +28,7 @@ export default function Auth() {
         setFullName('')
         setError(null)
         setMessage(null)
+        setIsForgotPassword(false)
     }, [isLogin])
 
     const handleAuth = async (e) => {
@@ -94,8 +96,27 @@ export default function Auth() {
         }
     }
 
-    // Success View for Signup
-    if (message && !isLogin && !error) {
+    const handleForgotPassword = async (e) => {
+        e.preventDefault()
+        setLoading(true)
+        setError(null)
+        setMessage(null)
+
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`,
+            })
+            if (error) throw error
+            setMessage('Password reset link has been sent to your email.')
+        } catch (error) {
+            setError(error.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // Success View for Signup or Forgot Password
+    if (message && !error) {
         return (
             <div className="auth-container">
                 <div className="auth-card success-view">
@@ -111,12 +132,58 @@ export default function Auth() {
                             className="submit-btn full-width"
                             onClick={() => {
                                 setMessage(null)
+                                setIsForgotPassword(false)
                                 setIsLogin(true)
                             }}
                         >
                             Back to Login
                         </button>
                     </div>
+                </div>
+            </div>
+        )
+    }
+
+    // Forgot Password View
+    if (isForgotPassword) {
+        return (
+            <div className="auth-container">
+                <div className="auth-card">
+                    <div className="auth-header">
+                        <h1>SplitEx</h1>
+                        <p>Enter your email to reset your password.</p>
+                    </div>
+
+                    <form onSubmit={handleForgotPassword} className="auth-form">
+                        <div className="input-group">
+                            <Mail size={20} />
+                            <input
+                                type="email"
+                                placeholder="Email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                        </div>
+
+                        {error && <div className="error-message">{error}</div>}
+
+                        <button type="submit" disabled={loading} className="submit-btn">
+                            {loading ? <Loader2 className="spin" /> : 'Send Reset Link'}
+                            {!loading && <ArrowRight size={18} />}
+                        </button>
+                    </form>
+
+                    <button
+                        className="forgot-link"
+                        onClick={() => {
+                            setIsForgotPassword(false)
+                            setError(null)
+                            setEmail('')
+                        }}
+                    >
+                        ← Back to Login
+                    </button>
                 </div>
             </div>
         )
@@ -182,6 +249,20 @@ export default function Auth() {
                     </div>
 
                     {error && <div className="error-message">{error}</div>}
+
+                    {isLogin && (
+                        <button
+                            type="button"
+                            className="forgot-link"
+                            onClick={() => {
+                                setIsForgotPassword(true)
+                                setError(null)
+                                setPassword('')
+                            }}
+                        >
+                            Forgot Password? Reset here
+                        </button>
+                    )}
 
                     <button type="submit" disabled={loading} className="submit-btn">
                         {loading ? <Loader2 className="spin" /> : (isLogin ? 'Login' : 'Sign Up')}
