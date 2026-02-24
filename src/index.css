@@ -165,9 +165,9 @@ input:focus {
   box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.2);
 }
 
-/* Modal Overlay (Glass) */
+/* Modal Overlay (Glass) - Nearly opaque for Android feel */
 .modal-overlay {
-  background: rgba(2, 6, 23, 0.7);
+  background: rgba(0, 0, 0, 0.98);
   backdrop-filter: blur(8px);
 }
 
@@ -204,6 +204,14 @@ input:focus {
   .modal-overlay {
     padding: 1rem;
     align-items: center !important;
-    /* Force center */
+    /* Force center relative to available space */
+    z-index: 2000 !important;
+    /* Ensure it stays above bottom-nav */
   }
+}
+
+/* Modal Root Stacking Context */
+#modal-root {
+  position: relative;
+  z-index: 9999;
 }

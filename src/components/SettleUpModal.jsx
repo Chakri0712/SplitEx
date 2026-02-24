@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import { getCurrencySymbol } from '../utils/currency'
 import { X, Loader2, ArrowRight, Trash2, HandCoins } from 'lucide-react'
@@ -339,7 +340,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
         }
     }
 
-    return (
+    return createPortal(
         <div className="modal-overlay">
             <div className="modal-card">
                 <div className="modal-header">
@@ -471,6 +472,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
                     )}
                 </form>
             </div>
-        </div>
+        </div>,
+        document.getElementById('modal-root')
     )
 }

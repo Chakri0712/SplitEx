@@ -1,5 +1,5 @@
-
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import { X, LogOut, Save, Trash2, Copy, Check, User } from 'lucide-react'
 import './CreateGroupModal.css'
@@ -211,7 +211,7 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
         }
     }
 
-    return (
+    return createPortal(
         <div className="modal-overlay">
             <div className="modal-card settings-modal">
                 <div className="modal-header">
@@ -311,6 +311,7 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
 
                 </div>
             </div>
-        </div>
+        </div>,
+        document.getElementById('modal-root')
     )
 }

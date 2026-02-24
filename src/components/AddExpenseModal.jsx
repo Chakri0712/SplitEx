@@ -1,5 +1,5 @@
-
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import { X, Loader2, Trash2 } from 'lucide-react'
 import './AddExpenseModal.css'
@@ -7,7 +7,7 @@ import './AddExpenseModal.css'
 import { validateName, validateAmount } from '../utils/validation'
 
 // export default function AddExpenseModal({ group, currentUser, onClose, onExpenseAdded, expenseToEdit = null, onDelete }) {
-export default function AddExpenseModal({ group, currentUser, members, onClose, onExpenseAdded, expenseToEdit = null, onDelete }) {
+export default function AddExpenseModal({ group, currentUser, members, onClose, onExpenseAdded, expenseToEdit = null }) {
     const [loading, setLoading] = useState(false)
     // const [members, setMembers] = useState([]) // removing local state
     const [error, setError] = useState(null)
@@ -278,19 +278,12 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
         }
     }
 
-    const handleDelete = async () => {
-        if (onDelete && expenseToEdit) {
-            onDelete(expenseToEdit.id)
-            onClose()
-        }
-    }
-
     // Calculation for UI
     const totalAmount = parseFloat(amount) || 0
     const equalShare = members.length > 0 ? (totalAmount / members.length).toFixed(2) : '0.00'
     const isZeroAmount = totalAmount <= 0
 
-    return (
+    return createPortal(
         <div className="modal-overlay">
             <div className="modal-card">
                 <div className="modal-header">
@@ -598,19 +591,9 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                     <button type="submit" disabled={loading} className="create-btn">
                         {loading ? <Loader2 className="spin" /> : (expenseToEdit ? 'Update Expense' : 'Save Expense')}
                     </button>
-
-                    {expenseToEdit && (
-                        <button
-                            type="button"
-                            onClick={handleDelete}
-                            disabled={loading}
-                            className="delete-expense-btn"
-                        >
-                            <Trash2 size={18} /> Delete
-                        </button>
-                    )}
                 </form>
             </div>
-        </div>
+        </div>,
+        document.getElementById('modal-root')
     )
 }

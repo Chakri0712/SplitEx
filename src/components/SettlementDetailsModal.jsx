@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Check, Clock, AlertCircle, Smartphone, HandCoins, Loader2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { getMemberName as _getMemberName } from '../utils/formatters'
@@ -289,7 +290,7 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
         (details?.settlement_status === 'pending_utr' || details?.settlement_status === 'pending_confirmation')
 
     if (loading) {
-        return (
+        return createPortal(
             <div className="modal-overlay">
                 <div className="modal-card settlement-details-modal">
                     <div className="loading-state">
@@ -297,11 +298,12 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
                         <span>Loading...</span>
                     </div>
                 </div>
-            </div>
+            </div>,
+            document.getElementById('modal-root')
         )
     }
 
-    return (
+    return createPortal(
         <div className="modal-overlay">
             <div className="modal-card settlement-details-modal">
                 <div className="modal-header">
@@ -502,6 +504,7 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.getElementById('modal-root')
     )
 }

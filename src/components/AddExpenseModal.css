@@ -11,8 +11,8 @@
     justify-content: center;
     z-index: 1000;
     padding: 0.5rem;
-    /* Reduced padding */
     backdrop-filter: blur(4px);
+    overflow: hidden;
 }
 
 .modal-card {
@@ -24,9 +24,14 @@
     width: 100%;
     max-width: 380px;
     /* Reduced width for compactness */
-    max-height: 90vh;
+    max-height: 92vh;
     overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     position: relative;
+    padding-bottom: 30px;
+    /* Extra room inside the card */
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     animation: modalSlideUp 0.3s ease-out;
 }
@@ -79,6 +84,7 @@
 .modal-form {
     display: flex;
     flex-direction: column;
+    padding-bottom: 3rem;
 }
 
 .form-group {
@@ -199,32 +205,6 @@
     to {
         transform: rotate(360deg);
     }
-}
-
-.delete-expense-btn {
-    width: 100%;
-    margin-top: 0.5rem;
-    /* Reduced */
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-    padding: 8px;
-    /* Reduced */
-    border-radius: var(--radius-md);
-    font-size: 0.85rem;
-    /* Reduced */
-    font-weight: 700;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 6px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.delete-expense-btn:hover {
-    background: rgba(239, 68, 68, 0.2);
-    transform: translateY(-1px);
 }
 
 /* Split Toggle & Unequal Styles */

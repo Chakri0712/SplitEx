@@ -1,4 +1,5 @@
 import React from 'react'
+import { createPortal } from 'react-dom'
 import { X, Pencil, Trash2, Calendar, User, CreditCard } from 'lucide-react'
 import { getCurrencySymbol } from '../utils/currency'
 import { formatDate, getMemberName } from '../utils/formatters'
@@ -20,7 +21,7 @@ export default function ExpenseDetailsModal({ expense, group, members, currentUs
     // we might just show the basic info and let "Edit" show the deep split details.
     // OR we can fetch splits here. Let's do a quick fetch for full details to be useful.
 
-    return (
+    return createPortal(
         <div className="modal-overlay">
             <div className="modal-card">
                 <div className="modal-header">
@@ -97,6 +98,7 @@ export default function ExpenseDetailsModal({ expense, group, members, currentUs
 
                 </div>
             </div>
-        </div>
+        </div>,
+        document.getElementById('modal-root')
     )
 }

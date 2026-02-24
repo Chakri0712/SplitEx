@@ -1,6 +1,6 @@
 .settings-modal {
-    max-height: 85vh;
-    max-height: 85dvh;
+    max-height: 92vh;
+    max-height: 92dvh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 }

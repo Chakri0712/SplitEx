@@ -2,7 +2,7 @@
     padding: 14px;
     max-width: 600px;
     margin: 0 auto;
-    min-height: 100vh;
+    padding-bottom: 2rem;
 }
 
 .profile-header {
@@ -250,7 +250,6 @@
 /* Account Menu Styles */
 .account-menu-wrapper {
     width: 100%;
-    min-height: 60vh;
     padding-top: 1rem;
 }
 
