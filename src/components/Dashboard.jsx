@@ -40,11 +40,8 @@ export default function Dashboard({ session, onGroupSelect }) {
     }
 
     const handleGroupAction = () => {
-        setIsActionMenuOpen(false)
         fetchGroups()
     }
-
-    const toggleActionMenu = () => setIsActionMenuOpen(!isActionMenuOpen)
 
     return (
         <div className="dashboard-container">
@@ -53,8 +50,23 @@ export default function Dashboard({ session, onGroupSelect }) {
                     <h1>My Groups</h1>
                     <p>Welcome, {session.user.user_metadata?.full_name || 'User'}</p>
                 </div>
-                <div className="header-actions">
-                    {/* Actions moved to Bottom Nav */}
+                <div className="header-actions" style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                        onClick={() => setIsJoinModalOpen(true)}
+                        className="btn-icon-round"
+                        title="Join Group"
+                        style={{ width: '36px', height: '36px', background: 'rgba(255,255,255,0.1)', color: 'var(--text-primary)' }}
+                    >
+                        <UserPlus size={18} />
+                    </button>
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="btn-icon-round"
+                        title="Create Group"
+                        style={{ width: '36px', height: '36px', background: 'var(--primary)', color: '#000' }}
+                    >
+                        <Plus size={20} strokeWidth={2.5} />
+                    </button>
                 </div>
             </header>
 
@@ -64,7 +76,7 @@ export default function Dashboard({ session, onGroupSelect }) {
                 <div className="groups-list">
                     {groups.length === 0 && (
                         <div className="empty-state">
-                            <p>No groups yet. Create a new one or join an existing group using the + button</p>
+                            <p>No groups yet. Create a new one or join an existing group using the buttons above</p>
                         </div>
                     )}
 
@@ -92,30 +104,7 @@ export default function Dashboard({ session, onGroupSelect }) {
                 </div>
             )}
 
-            {/* Floating Action Button & Menu */}
-            <div className="fab-container">
-                {isActionMenuOpen && (
-                    <div className="fab-menu">
-                        <button onClick={() => setIsModalOpen(true)} className="fab-menu-item">
-                            <Plus size={20} /> Create New Group
-                        </button>
-                        <button onClick={() => setIsJoinModalOpen(true)} className="fab-menu-item">
-                            <UserPlus size={20} /> Join with Code
-                        </button>
-                    </div>
-                )}
-                <button
-                    className={`fab-main ${isActionMenuOpen ? 'open' : ''}`}
-                    onClick={toggleActionMenu}
-                >
-                    <Plus size={24} />
-                </button>
-            </div>
-
-            {/* Modals Overlay Logic - Clicking outside FAB menu closes it */}
-            {isActionMenuOpen && (
-                <div className="fab-overlay" onClick={() => setIsActionMenuOpen(false)}></div>
-            )}
+            {/* Modals */}
 
             {isModalOpen && (
                 <CreateGroupModal

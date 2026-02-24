@@ -223,55 +223,7 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
 
                 <div className="modal-content mt-4">
 
-                    {/* Invite Code Section */}
-                    <div className="setting-section invite-section">
-                        <label className="section-label">
-                            INVITE CODE
-                        </label>
-                        <div className="invite-row">
-                            <div className="code-display">
-                                {group.invite_code}
-                            </div>
-                            <button
-                                onClick={handleCopyCode}
-                                className={`copy-btn ${copied ? 'copied' : ''}`}
-                                title="Copy Code"
-                            >
-                                {copied ? <Check size={20} /> : <Copy size={20} />}
-                            </button>
-                        </div>
-                        <p className="section-help">
-                            Share this code with friends to let them join.
-                        </p>
-                    </div>
 
-                    {/* Members List Section */}
-                    <div className="setting-section members-section">
-                        <label className="section-label">
-                            MEMBERS ({members.length})
-                        </label>
-                        <div className="members-list-scroll">
-                            {members.map((member) => (
-                                <div key={member.user_id} className="member-row">
-                                    <div className="member-avatar-placeholder">
-                                        <User size={20} className="default-avatar-icon" />
-                                    </div>
-                                    <div className="member-info">
-                                        <span className="member-name">
-                                            {member.profile?.full_name || 'Unknown User'}
-                                            {member.user_id === currentUser.id && <span className="you-badge">(You)</span>}
-                                        </span>
-                                        <span className="member-joined">
-                                            Joined {new Date(member.joined_at).toLocaleDateString()}
-                                        </span>
-                                    </div>
-                                    {group.created_by === member.user_id && (
-                                        <span className="admin-badge">Admin</span>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
 
                     <form onSubmit={handleUpdate} className="modal-form">
                         <div className="form-group">
@@ -292,8 +244,8 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                             <select
                                 value={currency}
                                 onChange={(e) => setCurrency(e.target.value)}
-                                disabled={true}
-                                className="currency-select"
+                                disabled={expenseCount > 0 || group.created_by !== currentUser.id}
+                                className={`currency-select ${expenseCount > 0 || group.created_by !== currentUser.id ? 'input-disabled' : ''}`}
                             >
                                 <option value="USD">USD - US Dollar</option>
                                 <option value="INR">INR - Indian Rupee</option>

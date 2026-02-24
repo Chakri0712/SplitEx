@@ -38,7 +38,7 @@ export default function AppShell({ session }) {
                     >
                         {activeTab === 'home' && <div className="nav-indicator" />}
                         <Home size={24} strokeWidth={activeTab === 'home' ? 2.5 : 2} />
-                        <span>Home</span>
+                        <span>Groups</span>
                     </button>
 
                     <button
@@ -71,7 +71,7 @@ export default function AppShell({ session }) {
                     >
                         {activeTab === 'profile' && <div className="nav-indicator" />}
                         <User size={24} strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
-                        <span>Profile</span>
+                        <span>Account</span>
                     </button>
                 </nav>
             )}

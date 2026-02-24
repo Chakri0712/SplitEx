@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { X, LogOut, Mail, User, Globe } from 'lucide-react'
+import { X, LogOut, Mail, User, Globe, RefreshCw, ChevronRight, MessageSquare, Edit2 } from 'lucide-react'
 import './Profile.css'
 import { validateName } from '../utils/validation'
 
 export default function Profile({ session }) {
     const navigate = useNavigate()
+    const [viewMode, setViewMode] = useState('menu') // 'menu' or 'edit'
     const [isSaving, setIsSaving] = useState(false)
     const [isSigningOut, setIsSigningOut] = useState(false)
+    const [isReloading, setIsReloading] = useState(false)
     const { user } = session
     const [fullName, setFullName] = useState(user.user_metadata?.full_name || '')
-    // const [upiId, setUpiId] = useState('') // Removed
-    // const [originalUpiId, setOriginalUpiId] = useState('') // Removed
-    const [country, setCountry] = useState('IND') // Default to India (3-letter ISO)
+    const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
+    const [feedbackText, setFeedbackText] = useState('')
+    const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
+    const [country, setCountry] = useState('IND')
     const [originalCountry, setOriginalCountry] = useState('IND')
     const [email] = useState(user.email)
     const [message, setMessage] = useState(null)
@@ -30,13 +33,11 @@ export default function Profile({ session }) {
 
             if (!error && data) {
                 let loadedCountry = data.country
-                // Fallback to auth metadata if profile is empty
                 if (!loadedCountry && user.user_metadata?.country) {
                     loadedCountry = user.user_metadata.country
                 }
 
                 if (loadedCountry) {
-                    // Map 2-letter to 3-letter if needed (migration support)
                     const map = { 'IN': 'IND', 'US': 'USA', 'CA': 'CAN', 'GB': 'GBR', 'JP': 'JPN', 'AU': 'AUS', 'EU': 'EUR' }
                     const finalCountry = map[loadedCountry] || loadedCountry
                     setCountry(finalCountry)
@@ -51,7 +52,6 @@ export default function Profile({ session }) {
         setMessage(null)
         setError(null)
 
-        // Validation
         const validationError = validateName(fullName, "User Name", 50)
         if (validationError) {
             setError(validationError)
@@ -65,7 +65,6 @@ export default function Profile({ session }) {
 
         setIsSaving(true)
         try {
-            // 1. Update public profile (name, country)
             const { error: profileError } = await supabase
                 .from('profiles')
                 .update({
@@ -76,7 +75,6 @@ export default function Profile({ session }) {
 
             if (profileError) throw profileError
 
-            // 2. Update auth metadata (only for name)
             if (nameChanged) {
                 const { error: authError } = await supabase.auth.updateUser({
                     data: { full_name: fullName.trim() }
@@ -86,7 +84,10 @@ export default function Profile({ session }) {
 
             setOriginalCountry(country)
             setMessage('Profile updated successfully!')
-            setTimeout(() => setMessage(null), 3000)
+            setTimeout(() => {
+                setMessage(null)
+                setViewMode('menu')
+            }, 1000)
         } catch (error) {
             console.error('Error updating profile:', error)
             alert('Failed to update profile')
@@ -109,20 +110,163 @@ export default function Profile({ session }) {
         }
     }
 
+    const handleSubmitFeedback = async () => {
+        if (!feedbackText.trim()) return;
+        setIsSubmittingFeedback(true);
+        try {
+            // Note: Directly sending an email from the client requires a backend endpoint (like Supabase Edge Functions or EmailJS).
+            // For now, we simulate the submission. As the app grows, you can connect this to an edge function
+            // that uses an email provider (Resend, SendGrid) to email "tmchakradhar2000@gmail.com".
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            // Optionally, save to a 'feedback' table in Supabase if you prefer logging it into the DB
+            // await supabase.from('feedback').insert([{ user_id: user.id, message: feedbackText, email: user.email }]);
+
+            alert("Feedback sent successfully!");
+            setFeedbackText('');
+            setIsFeedbackOpen(false);
+        } catch (err) {
+            console.error("Feedback error", err);
+            alert("Failed to send feedback.");
+        } finally {
+            setIsSubmittingFeedback(false);
+        }
+    }
+
+    const handleReloadApp = () => {
+        setIsReloading(true)
+        setTimeout(() => {
+            window.location.reload(true)
+        }, 1500)
+    }
+
+    if (viewMode === 'menu') {
+        return (
+            <div className="profile-container" style={{ padding: '0' }}>
+                <header className="profile-header" style={{ padding: '14px' }}>
+                    <h1>Account</h1>
+                    <div className="placeholder"></div>
+                </header>
+
+                <main className="profile-content" style={{ padding: '0 14px' }}>
+                    <div className="account-menu-wrapper" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+                        {/* User Header */}
+                        <div className="account-user-header" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '0 8px 16px 8px' }}>
+                            <div className="account-avatar" style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                                {fullName ? fullName.charAt(0).toUpperCase() : email.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="account-details" style={{ flex: 1 }}>
+                                <h2 style={{ fontSize: '1.25rem', margin: 0, color: 'var(--text-primary)' }}>{fullName || 'User'}</h2>
+                                <p style={{ fontSize: '0.9rem', margin: 0, color: 'var(--text-muted)' }}>{email}</p>
+                            </div>
+                            <button onClick={() => setViewMode('edit')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', padding: '8px', cursor: 'pointer' }}>
+                                <Edit2 size={20} />
+                            </button>
+                        </div>
+
+                        {/* Menu Items */}
+                        <div className="account-menu-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <button className="account-menu-item" onClick={() => setIsFeedbackOpen(true)}>
+                                <MessageSquare size={20} className="menu-icon" />
+                                <span>Submit Feedback</span>
+                                <ChevronRight size={20} className="menu-chevron" />
+                            </button>
+
+                            <button className="account-menu-item" onClick={handleReloadApp} disabled={isReloading}>
+                                <RefreshCw size={20} className={`menu-icon ${isReloading ? 'spinning' : ''}`} />
+                                <span>{isReloading ? 'Refreshing...' : 'Reload App'}</span>
+                                <ChevronRight size={20} className="menu-chevron" />
+                            </button>
+
+                            {isReloading && (
+                                <div style={{ fontSize: '0.8rem', color: 'var(--primary)', textAlign: 'center', marginTop: '-4px', marginBottom: '8px' }}>
+                                    Fetching latest updates...
+                                </div>
+                            )}
+
+                        </div>
+
+                        <div style={{ marginTop: 'auto', paddingTop: '24px', paddingBottom: '32px' }}>
+                            <button className="sign-out-btn" onClick={handleSignOut} disabled={isSigningOut} style={{ background: 'transparent', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                                {isSigningOut ? 'Signing Out...' : 'Logout'}
+                            </button>
+                        </div>
+
+                    </div>
+                </main>
+
+                {/* Feedback Modal */}
+                {isFeedbackOpen && (
+                    <div className="modal-overlay" onClick={() => setIsFeedbackOpen(false)}>
+                        <div className="modal-content" onClick={e => e.stopPropagation()}>
+                            <div className="modal-header">
+                                <h2>Submit Feedback</h2>
+                                <button className="close-btn" onClick={() => setIsFeedbackOpen(false)}>
+                                    <X size={24} />
+                                </button>
+                            </div>
+                            <div className="modal-body">
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>
+                                    Your feedback helps us improve the app.
+                                </p>
+                                <textarea
+                                    value={feedbackText}
+                                    onChange={(e) => setFeedbackText(e.target.value)}
+                                    maxLength={500}
+                                    placeholder="Write your feedback here..."
+                                    style={{
+                                        width: '100%',
+                                        height: '150px',
+                                        background: 'var(--bg-input)',
+                                        border: '1px solid var(--border-color)',
+                                        color: 'var(--text-primary)',
+                                        padding: '12px',
+                                        borderRadius: '8px',
+                                        resize: 'none',
+                                        fontFamily: 'inherit'
+                                    }}
+                                />
+                                <div style={{ textAlign: 'right', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+                                    {feedbackText.length}/500
+                                </div>
+                            </div>
+                            <div className="modal-footer" style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                                <button
+                                    className="btn-secondary"
+                                    style={{ flex: 1, padding: '12px', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', border: 'none' }}
+                                    onClick={() => setIsFeedbackOpen(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="btn-primary"
+                                    style={{ flex: 1, padding: '12px', borderRadius: '8px', background: 'var(--primary)', color: '#000', border: 'none', fontWeight: 'bold' }}
+                                    onClick={handleSubmitFeedback}
+                                    disabled={isSubmittingFeedback || !feedbackText.trim()}
+                                >
+                                    {isSubmittingFeedback ? 'Submitting...' : 'Submit'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
     return (
         <div className="profile-container">
             <header className="profile-header">
-                <button onClick={() => navigate(-1)} className="back-btn">
+                <button onClick={() => setViewMode('menu')} className="back-btn">
                     <X size={24} />
                 </button>
-                <h1>My Profile</h1>
-                <div className="placeholder"></div> {/* For spacing alignment */}
+                <h1>Edit Profile</h1>
+                <div className="placeholder"></div>
             </header>
 
             <main className="profile-content">
                 <div className="profile-card">
-
-
                     <div className="profile-info">
                         <div className="info-group">
                             <label>User Name</label>
@@ -165,7 +309,7 @@ export default function Profile({ session }) {
                                         appearance: 'none',
                                         WebkitAppearance: 'none',
                                         paddingRight: '40px',
-                                        paddingLeft: '48px' // Make room for the Globe icon
+                                        paddingLeft: '48px'
                                     }}
                                 >
                                     <option value="IND" style={{ color: 'black' }}>India</option>
@@ -178,8 +322,6 @@ export default function Profile({ session }) {
                                 </select>
                             </div>
                         </div>
-
-                        {/* UPI Section Removed */}
                     </div>
 
                     {error && <div className="error-message-profile">{error}</div>}
@@ -189,18 +331,9 @@ export default function Profile({ session }) {
                         <button
                             className="update-btn"
                             onClick={handleUpdate}
-                            disabled={isSaving || isSigningOut || (fullName === user.user_metadata?.full_name && country === originalCountry)}
+                            disabled={isSaving || (fullName === user.user_metadata?.full_name && country === originalCountry)}
                         >
                             {isSaving ? 'Saving...' : 'Save Changes'}
-                        </button>
-
-                        <button
-                            className="sign-out-btn"
-                            onClick={handleSignOut}
-                            disabled={isSaving || isSigningOut}
-                        >
-                            <LogOut size={20} />
-                            {isSigningOut ? 'Signing Out...' : 'Sign Out'}
                         </button>
                     </div>
                 </div>

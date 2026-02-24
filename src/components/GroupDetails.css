@@ -16,6 +16,59 @@
     margin-bottom: 1rem;
 }
 
+/* Compact Invite Row */
+.invite-row-compact {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-card);
+    padding: 10px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    margin: 0 20px 20px 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.invite-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.code-display-compact {
+    font-family: monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: 2px;
+    flex-grow: 1;
+    text-align: center;
+}
+
+.copy-btn-compact {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-input);
+}
+
+.copy-btn-compact:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.copy-btn-compact.copied {
+    color: var(--success);
+    background: rgba(34, 197, 94, 0.1);
+}
+
 .back-btn,
 .settings-btn {
     background: none;
@@ -315,10 +368,10 @@
     }
 }
 
-/* Active Tab Styles update to support 2 items (Transactions, Balances) */
+/* Active Tab Styles update to support 3 items (Transactions, Balances, Members) */
 .tab-navigation {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 4px;
     margin-bottom: 20px;
     background: var(--bg-card);

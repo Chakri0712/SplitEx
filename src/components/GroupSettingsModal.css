@@ -1,3 +1,10 @@
+.settings-modal {
+    max-height: 85vh;
+    max-height: 85dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 .mt-4 {
     margin-top: 1rem;
 }

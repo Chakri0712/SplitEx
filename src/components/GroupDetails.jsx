@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { getCurrencySymbol } from '../utils/currency'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info, HandCoins, ArrowRight } from 'lucide-react'
+import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info, HandCoins, ArrowRight, UserPlus, Users, Check, Copy } from 'lucide-react'
 import AddExpenseModal from './AddExpenseModal'
 import SettleUpModal from './SettleUpModal'
 import GroupSettingsModal from './GroupSettingsModal'
@@ -34,6 +34,7 @@ export default function GroupDetails({ session, group, onBack }) {
     // Settlements Filter State: 'all' or 'my'
     const [settlementsFilterMode, setSettlementsFilterMode] = useState('my') // Start with "Mine"
     const [selectedExpenseForDetails, setSelectedExpenseForDetails] = useState(null)
+    const [copied, setCopied] = useState(false)
 
     const updateExpenseFilter = (filter) => {
         setExpenseFilter(filter)
@@ -190,7 +191,7 @@ export default function GroupDetails({ session, group, onBack }) {
                 const isCurrent = currentMemberIds.has(uid)
                 return {
                     id: uid,
-                    name: (profile?.full_name || 'Unknown') + (!isCurrent ? ' (Left)' : ''),
+                    name: profile?.full_name || 'Unknown',
                     avatar: profile?.avatar_url,
                     upiId: profile?.upi_id || null,
                     country: profile?.country || 'US',
@@ -417,7 +418,7 @@ export default function GroupDetails({ session, group, onBack }) {
 
     return (
         <div className="details-container">
-            <header className="details-header">
+            <header className="details-header" style={{ marginBottom: '12px' }}>
                 <button onClick={onBack} className="back-btn">
                     <ArrowLeft size={24} />
                 </button>
@@ -434,6 +435,39 @@ export default function GroupDetails({ session, group, onBack }) {
                 </button>
             </header>
 
+            {/* Invite Code Row */}
+            <div className="invite-row-compact">
+                <span className="invite-label">Invite Code:</span>
+                <div className="code-display-compact">
+                    {currentGroup.invite_code}
+                </div>
+                <button
+                    onClick={() => {
+                        const textArea = document.createElement("textarea")
+                        textArea.value = currentGroup.invite_code
+                        textArea.style.top = "0"
+                        textArea.style.left = "0"
+                        textArea.style.position = "fixed"
+                        document.body.appendChild(textArea)
+                        textArea.focus()
+                        textArea.select()
+                        const successful = document.execCommand('copy')
+                        document.body.removeChild(textArea)
+
+                        if (successful) {
+                            setCopied(true)
+                            setTimeout(() => setCopied(false), 2000)
+                        } else {
+                            alert(`Failed to copy. Your invite code is: ${currentGroup.invite_code}`)
+                        }
+                    }}
+                    className={`copy-btn-compact ${copied ? 'copied' : ''}`}
+                    title="Copy Code"
+                >
+                    {copied ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+            </div>
+
             {/* Tab Navigation */}
             <div className="tab-navigation">
                 <button
@@ -449,6 +483,13 @@ export default function GroupDetails({ session, group, onBack }) {
                 >
                     <Banknote size={18} />
                     Balances
+                </button>
+                <button
+                    className={`tab-btn ${activeTab === 'members' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('members')}
+                >
+                    <Users size={18} />
+                    Members
                 </button>
             </div>
 
@@ -664,6 +705,47 @@ export default function GroupDetails({ session, group, onBack }) {
                             )}
                         </>
                     )}
+                </div>
+            )}
+
+            {/* Members Tab */}
+            {activeTab === 'members' && (
+                <div className="members-view">
+                    <div className="members-list-container" style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Group Members</h3>
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{members.length} members</span>
+                        </div>
+                        {loading ? (
+                            <div className="loading">Loading members...</div>
+                        ) : (
+                            <div className="members-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                {members.map((member) => (
+                                    <div key={member.id} className="member-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg-input)', borderRadius: '8px' }}>
+                                        <div className="member-avatar" style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                                            {member.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="member-info" style={{ flex: 1 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span className="member-name" style={{ fontWeight: '500', color: 'var(--text-primary)' }}>
+                                                    {member.name}
+                                                </span>
+                                                {member.id === session.user.id && (
+                                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '2px 6px', borderRadius: '4px' }}>You</span>
+                                                )}
+                                                {currentGroup.created_by === member.id && (
+                                                    <span style={{ fontSize: '0.7rem', color: 'var(--primary)', background: 'rgba(234, 179, 8, 0.15)', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>Admin</span>
+                                                )}
+                                            </div>
+                                            {!member.isCurrent && (
+                                                <div style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '2px' }}>Left Group</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
