@@ -183,60 +183,7 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
         }
     }, [availableReceivers, receiver, expenseToEdit])
 
-    // Create Settlement Record (shared logic)
-    const createSettlementRecord = async (method) => {
-        const receiverName = members.find(m => m.id === receiver)?.name || 'Someone'
-        const finalDescription = description.trim() || `Settlement to ${receiverName}`
-
-        const { data: expense, error: expenseError } = await supabase
-            .from('expenses')
-            .insert({
-                group_id: group.id,
-                paid_by: payer,
-                amount: parseFloat(amount),
-                description: finalDescription,
-                category: 'settlement',
-                created_by: currentUser.id
-            })
-            .select()
-            .single()
-
-        if (expenseError) throw expenseError
-
-        const { error: splitError } = await supabase
-            .from('expense_splits')
-            .insert({
-                expense_id: expense.id,
-                user_id: receiver,
-                owe_amount: parseFloat(amount)
-            })
-
-        if (splitError) throw splitError
-
-        return expense.id
-    }
-
-    // Insert Settlement Details
-    const insertSettlementDetails = async (expenseId, method, status, utr = null) => {
-        const insertData = {
-            expense_id: expenseId,
-            settlement_method: method,
-            settlement_status: status,
-            utr_reference: utr,
-            initiated_by: currentUser.id
-        }
-
-        if (status === 'confirmed') {
-            insertData.confirmed_by = currentUser.id
-            insertData.confirmed_at = new Date().toISOString()
-        }
-
-        const { error } = await supabase
-            .from('settlement_details')
-            .insert(insertData)
-
-        if (error) throw error
-    }
+    // RPC logic will be handled directly in the handlers down below
 
     // Get max amount user can settle (amount owed to receiver)
     const getMaxSettleAmount = () => {
@@ -277,8 +224,21 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
 
         setLoading(true)
         try {
-            const expenseId = await createSettlementRecord(settlementMethod)
-            await insertSettlementDetails(expenseId, settlementMethod, initialStatus)
+            const receiverName = members.find(m => m.id === receiver)?.name || 'Someone'
+            const finalDescription = description.trim() || `Settlement to ${receiverName}`
+
+            const { error: rpcError } = await supabase.rpc('create_settlement_rpc', {
+                p_group_id: group.id,
+                p_paid_by: payer,
+                p_receiver_id: receiver,
+                p_amount: parseFloat(amount),
+                p_description: finalDescription,
+                p_created_by: currentUser.id,
+                p_settlement_method: settlementMethod,
+                p_settlement_status: initialStatus
+            })
+
+            if (rpcError) throw rpcError
 
             onPaymentRecorded()
             onClose()
@@ -300,28 +260,17 @@ export default function SettleUpModal({ group, currentUser, members, debts: prop
             const receiverName = members.find(m => m.id === receiver)?.name || 'Someone'
             const finalDescription = description.trim() || `Settlement to ${receiverName}`
 
-            const { error: expenseError } = await supabase
-                .from('expenses')
-                .update({
-                    paid_by: payer,
-                    amount: parseFloat(amount),
-                    description: finalDescription
-                })
-                .eq('id', expenseToEdit.id)
+            const { error: rpcError } = await supabase.rpc('update_settlement_rpc', {
+                p_expense_id: expenseToEdit.id,
+                p_group_id: group.id,
+                p_paid_by: payer,
+                p_receiver_id: receiver,
+                p_amount: parseFloat(amount),
+                p_description: finalDescription,
+                p_updated_by: currentUser.id
+            })
 
-            if (expenseError) throw expenseError
-
-            await supabase.from('expense_splits').delete().eq('expense_id', expenseToEdit.id)
-
-            const { error: splitError } = await supabase
-                .from('expense_splits')
-                .insert({
-                    expense_id: expenseToEdit.id,
-                    user_id: receiver,
-                    owe_amount: parseFloat(amount)
-                })
-
-            if (splitError) throw splitError
+            if (rpcError) throw rpcError
 
             onPaymentRecorded()
             onClose()

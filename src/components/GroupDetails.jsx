@@ -182,9 +182,10 @@ export default function GroupDetails({ session, group, onBack }) {
                 profilesMap[p.id] = p
             })
 
-            // Identify current member IDs for tagging ex-members if needed (optional)
+            // Record current members for `isCurrent` status
             const currentMemberIds = new Set(membersData?.map(m => m.user_id))
 
+            // Identify current member IDs for tagging ex-members if needed (optional)
             // Build the final member list for display
             const historicalMembers = uniqueUserIds.map(uid => {
                 const profile = profilesMap[uid]
@@ -579,7 +580,7 @@ export default function GroupDetails({ session, group, onBack }) {
                                             })() : expense.description}
                                         </h4>
                                         <p>
-                                            {expense.category !== 'settlement' && new Date(expense.updated_at || expense.date).getTime() > new Date(expense.created_at || expense.date).getTime() + 60000 && (
+                                            {expense.category !== 'settlement' && expense.updated_by_profile && expense.updated_at && Math.abs(new Date(expense.updated_at).getTime() - new Date(expense.created_at || expense.date).getTime()) > 5000 && (
                                                 <span style={{
                                                     fontSize: '0.85em',
                                                     fontWeight: '600',

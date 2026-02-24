@@ -76,9 +76,22 @@ create table if not exists expenses (
 create table if not exists expense_splits (
   id uuid default uuid_generate_v4() primary key,
   expense_id uuid references expenses on delete cascade not null,
+  group_id uuid references groups(id) on delete cascade not null,
   user_id uuid references profiles(id) not null,
   owe_amount decimal(10,2) not null
 );
+
+-- ============================================================================
+-- 2.5 INDEXES (Performance Optimizations)
+-- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_expenses_group_id ON expenses(group_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_paid_by ON expenses(paid_by);
+CREATE INDEX IF NOT EXISTS idx_splits_expense_id ON expense_splits(expense_id);
+CREATE INDEX IF NOT EXISTS idx_splits_user_id ON expense_splits(user_id);
+CREATE INDEX IF NOT EXISTS idx_splits_group_id ON expense_splits(group_id);
+CREATE INDEX IF NOT EXISTS idx_settlements_expense_id ON settlement_details(expense_id);
+CREATE INDEX IF NOT EXISTS idx_settlements_initiated_by ON settlement_details(initiated_by);
+CREATE INDEX IF NOT EXISTS idx_group_members_group_user ON group_members(group_id, user_id);
 
 -- Settlement Details
 create table if not exists settlement_details (
@@ -164,18 +177,10 @@ create policy "Delete expenses" on expenses for delete using (
 );
 
 -- Splits
-create policy "View splits" on expense_splits for select using (
-  exists (select 1 from expenses where id = expense_splits.expense_id and is_member_of(group_id))
-);
-create policy "Add splits" on expense_splits for insert with check (
-  exists (select 1 from expenses where id = expense_splits.expense_id and is_member_of(group_id))
-);
-create policy "Update splits" on expense_splits for update using (
-  exists (select 1 from expenses where id = expense_splits.expense_id and is_member_of(group_id))
-);
-create policy "Delete splits" on expense_splits for delete using (
-  exists (select 1 from expenses where id = expense_splits.expense_id and is_member_of(group_id))
-);
+create policy "View splits" on expense_splits for select using (is_member_of(group_id));
+create policy "Add splits" on expense_splits for insert with check (is_member_of(group_id));
+create policy "Update splits" on expense_splits for update using (is_member_of(group_id));
+create policy "Delete splits" on expense_splits for delete using (is_member_of(group_id));
 
 -- Settlement Details
 create policy "View settlement details" on settlement_details for select using (
@@ -246,6 +251,101 @@ begin
   values (target_group_id, auth.uid());
 
   return json_build_object('id', target_group_id, 'name', target_group_name, 'already_joined', false);
+end;
+$$;
+
+-- 8. ATOMIC RPC FUNCTIONS (SECURITY DEFINER)
+create or replace function create_expense_rpc(
+    p_group_id uuid, p_paid_by uuid, p_amount numeric, p_description text, 
+    p_date timestamptz, p_created_by uuid, p_splits jsonb
+) returns uuid language plpgsql security definer as $$
+declare
+    new_expense_id uuid;
+    split_record jsonb;
+begin
+    if not exists (select 1 from group_members where group_id = p_group_id and user_id = auth.uid()) then
+        raise exception 'Not authorized to add expenses to this group';
+    end if;
+    insert into expenses (group_id, paid_by, amount, description, date, created_by)
+    values (p_group_id, p_paid_by, p_amount, p_description, p_date, p_created_by)
+    returning id into new_expense_id;
+
+    for split_record in select * from jsonb_array_elements(p_splits)
+    loop
+        insert into expense_splits (expense_id, group_id, user_id, owe_amount)
+        values (new_expense_id, p_group_id, (split_record->>'user_id')::uuid, (split_record->>'owe_amount')::numeric);
+    end loop;
+    return new_expense_id;
+end;
+$$;
+
+create or replace function update_expense_rpc(
+    p_expense_id uuid, p_group_id uuid, p_paid_by uuid, p_amount numeric, 
+    p_description text, p_date timestamptz, p_updated_by uuid, p_splits jsonb
+) returns void language plpgsql security definer as $$
+declare
+    split_record jsonb;
+begin
+    if not exists (select 1 from group_members where group_id = p_group_id and user_id = auth.uid()) then
+        raise exception 'Not authorized to update expenses in this group';
+    end if;
+    if not exists (select 1 from expenses where id = p_expense_id and group_id = p_group_id) then
+        raise exception 'Expense not found or group mismatch';
+    end if;
+
+    update expenses set paid_by = p_paid_by, amount = p_amount, description = p_description, date = p_date, updated_by = p_updated_by, updated_at = now()
+    where id = p_expense_id;
+
+    delete from expense_splits where expense_id = p_expense_id;
+    for split_record in select * from jsonb_array_elements(p_splits)
+    loop
+        insert into expense_splits (expense_id, group_id, user_id, owe_amount)
+        values (p_expense_id, p_group_id, (split_record->>'user_id')::uuid, (split_record->>'owe_amount')::numeric);
+    end loop;
+end;
+$$;
+
+create or replace function create_settlement_rpc(
+    p_group_id uuid, p_paid_by uuid, p_receiver_id uuid, p_amount numeric, 
+    p_description text, p_created_by uuid, p_settlement_method text, p_settlement_status text
+) returns uuid language plpgsql security definer as $$
+declare
+    new_expense_id uuid;
+begin
+    if not exists (select 1 from group_members where group_id = p_group_id and user_id = auth.uid()) then
+        raise exception 'Not authorized';
+    end if;
+    insert into expenses (group_id, paid_by, amount, description, category, created_by)
+    values (p_group_id, p_paid_by, p_amount, p_description, 'settlement', p_created_by)
+    returning id into new_expense_id;
+
+    insert into expense_splits (expense_id, group_id, user_id, owe_amount)
+    values (new_expense_id, p_group_id, p_receiver_id, p_amount);
+
+    insert into settlement_details (expense_id, settlement_method, settlement_status, initiated_by, confirmed_by, confirmed_at)
+    values (
+        new_expense_id, p_settlement_method, p_settlement_status, p_created_by,
+        case when p_settlement_status = 'confirmed' then p_created_by else null end,
+        case when p_settlement_status = 'confirmed' then now() else null end
+    );
+    return new_expense_id;
+end;
+$$;
+
+create or replace function update_settlement_rpc(
+    p_expense_id uuid, p_group_id uuid, p_paid_by uuid, p_receiver_id uuid, 
+    p_amount numeric, p_description text, p_updated_by uuid
+) returns void language plpgsql security definer as $$
+begin
+    if not exists (select 1 from group_members where group_id = p_group_id and user_id = auth.uid()) then
+        raise exception 'Not authorized';
+    end if;
+    update expenses set paid_by = p_paid_by, amount = p_amount, description = p_description, updated_by = p_updated_by, updated_at = now()
+    where id = p_expense_id;
+
+    delete from expense_splits where expense_id = p_expense_id;
+    insert into expense_splits (expense_id, group_id, user_id, owe_amount)
+    values (p_expense_id, p_group_id, p_receiver_id, p_amount);
 end;
 $$;
 
