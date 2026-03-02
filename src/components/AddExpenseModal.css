@@ -24,7 +24,7 @@
     width: 100%;
     max-width: 380px;
     /* Reduced width for compactness */
-    max-height: 92vh;
+    max-height: 90vh;
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;

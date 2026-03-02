@@ -192,54 +192,13 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
 
         setLoading(true)
         try {
-            let expenseId = expenseToEdit?.id
-
-            if (expenseToEdit) {
-                // UPDATE FLOW
-                const { error: updateError } = await supabase
-                    .from('expenses')
-                    .update({
-                        paid_by: paidBy,
-                        amount: totalAmount,
-                        description: description.trim(),
-                        date: new Date(date).toISOString(),
-                        updated_at: new Date().toISOString(),
-                        updated_by: currentUser.id
-                    })
-                    .eq('id', expenseId)
-
-                if (updateError) throw updateError
-
-                // Delete old splits
-                await supabase.from('expense_splits').delete().eq('expense_id', expenseId)
-
-            } else {
-                // CREATE FLOW
-                const { data: expense, error: expenseError } = await supabase
-                    .from('expenses')
-                    .insert({
-                        group_id: group.id,
-                        paid_by: paidBy,
-                        amount: totalAmount,
-                        description: description.trim(),
-                        date: new Date(date).toISOString(),
-                        created_by: currentUser.id
-                    })
-                    .select()
-                    .single()
-
-                if (expenseError) throw expenseError
-                expenseId = expense.id
-            }
-
-            // Create Splits
+            // First, determine the splits array regardless of Create/Update
             let splits = []
             if (splitMode === 'EQUAL') {
                 const splitAmount = parseFloat((totalAmount / members.length).toFixed(2)) // Initial rough split
 
                 // create basic equal splits
                 splits = members.map(member => ({
-                    expense_id: expenseId,
                     user_id: member.id,
                     owe_amount: splitAmount
                 }))
@@ -249,24 +208,47 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                 const diff = parseFloat((totalAmount - currentSum).toFixed(2))
 
                 if (diff !== 0) {
-                    // Add diff to the first person (or random)
+                    // Add diff to the first person
                     splits[0].owe_amount = parseFloat((splits[0].owe_amount + diff).toFixed(2))
                 }
 
             } else {
                 // UNEQUAL
                 splits = members.map(member => ({
-                    expense_id: expenseId,
                     user_id: member.id,
                     owe_amount: parseFloat(customSplits[member.id]) || 0
                 }))
             }
 
-            const { error: splitError } = await supabase
-                .from('expense_splits')
-                .insert(splits)
+            if (expenseToEdit) {
+                // UPDATE FLOW (Atomic RPC)
+                const { error: updateError } = await supabase.rpc('update_expense_rpc', {
+                    p_expense_id: expenseToEdit.id,
+                    p_group_id: group.id,
+                    p_paid_by: paidBy,
+                    p_amount: totalAmount,
+                    p_description: description.trim(),
+                    p_date: new Date(date).toISOString(),
+                    p_updated_by: currentUser.id,
+                    p_splits: splits
+                })
 
-            if (splitError) throw splitError
+                if (updateError) throw updateError
+
+            } else {
+                // CREATE FLOW (Atomic RPC)
+                const { error: expenseError } = await supabase.rpc('create_expense_rpc', {
+                    p_group_id: group.id,
+                    p_paid_by: paidBy,
+                    p_amount: totalAmount,
+                    p_description: description.trim(),
+                    p_date: new Date(date).toISOString(),
+                    p_created_by: currentUser.id,
+                    p_splits: splits
+                })
+
+                if (expenseError) throw expenseError
+            }
 
             onExpenseAdded()
             onClose()

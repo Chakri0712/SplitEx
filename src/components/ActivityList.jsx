@@ -12,7 +12,14 @@ export default function ActivityList() {
         if (!n.is_read) markAsRead(n.id)
 
         if (n.data?.group_id) {
-            navigate(`/group/${n.data.group_id}`)
+            let url = `/group/${n.data.group_id}`
+
+            // Navigate to settlements view if it's a settlement notification
+            if (n.type.includes('settlement')) {
+                url += '?tab=expenses&filter=settlements'
+            }
+
+            navigate(url)
         }
     }
 
