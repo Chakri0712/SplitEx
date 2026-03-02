@@ -6,10 +6,19 @@ import CreateGroupModal from './CreateGroupModal'
 import JoinGroupModal from './JoinGroupModal'
 import './Dashboard.css'
 
+const CATEGORY_FILTERS = [
+    'All',
+    'Food',
+    'Travel',
+    'Sports',
+    'Personal'
+]
+
 export default function Dashboard({ session, onGroupSelect }) {
     const navigate = useNavigate()
     const location = useLocation()
     const [groups, setGroups] = useState([])
+    const [selectedCategory, setSelectedCategory] = useState('All')
     const [loading, setLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isJoinModalOpen, setIsJoinModalOpen] = useState(false)
@@ -43,11 +52,27 @@ export default function Dashboard({ session, onGroupSelect }) {
         fetchGroups()
     }
 
+    const filteredGroups = selectedCategory === 'All'
+        ? groups
+        : groups.filter(g => (g.category || 'Personal') === selectedCategory)
+
     return (
         <div className="dashboard-container">
             <header className="dashboard-header">
                 <div className="header-left">
-                    <h1>My Groups</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <select
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                            className="dashboard-filter-dropdown"
+                        >
+                            {CATEGORY_FILTERS.map(cat => (
+                                <option key={cat} value={cat}>
+                                    {cat === 'All' ? 'All Groups' : cat}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                     <p>Welcome, {session.user.user_metadata?.full_name || 'User'}</p>
                 </div>
                 <div className="header-actions" style={{ display: 'flex', gap: '8px' }}>
@@ -74,13 +99,13 @@ export default function Dashboard({ session, onGroupSelect }) {
                 <div className="loading-state">Loading groups...</div>
             ) : (
                 <div className="groups-list">
-                    {groups.length === 0 && (
+                    {filteredGroups.length === 0 && (
                         <div className="empty-state">
-                            <p>No groups yet. Create a new one or join an existing group using the buttons above</p>
+                            <p>{groups.length === 0 ? "No groups yet. Create a new one or join an existing group using the buttons above" : `No '${selectedCategory}' groups found.`}</p>
                         </div>
                     )}
 
-                    {groups.map((group) => (
+                    {filteredGroups.map((group) => (
                         <div
                             key={group.id}
                             className="group-list-item"

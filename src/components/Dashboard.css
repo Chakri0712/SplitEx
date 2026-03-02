@@ -150,6 +150,34 @@
     color: var(--text-muted);
 }
 
+.dashboard-filter-dropdown {
+    background-color: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    font-weight: 700;
+    outline: none;
+    cursor: pointer;
+    padding: 0 24px 0 0;
+    width: auto;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: all 0.2s ease;
+
+    /* Custom Arrow - Primary Color (#facc15 / var(--primary)) */
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23facc15' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right center;
+    background-size: 24px;
+}
+
+.dashboard-filter-dropdown option {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 500;
+}
+
 .empty-state {
     text-align: center;
     padding: 40px;

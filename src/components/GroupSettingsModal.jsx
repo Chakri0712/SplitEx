@@ -7,10 +7,18 @@ import './GroupSettingsModal.css'
 
 import { validateName } from '../utils/validation'
 
+const CATEGORIES = [
+    'Personal',
+    'Food',
+    'Travel',
+    'Sports'
+]
+
 export default function GroupSettingsModal({ group, currentUser, onClose, onGroupUpdated, onGroupLeft }) {
     const [loading, setLoading] = useState(false)
     const [name, setName] = useState(group.name)
     const [currency, setCurrency] = useState(group.currency)
+    const [category, setCategory] = useState(group.category || 'Personal')
     const [copied, setCopied] = useState(false)
     const [members, setMembers] = useState([])
     const [memberCount, setMemberCount] = useState(0)
@@ -74,13 +82,13 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
             return
         }
 
-        if (name.trim() === group.name && currency === group.currency) return
+        if (name.trim() === group.name && currency === group.currency && category === (group.category || 'Personal')) return
 
         setLoading(true)
         try {
             const { data, error } = await supabase
                 .from('groups')
-                .update({ name: name.trim(), currency: currency })
+                .update({ name: name.trim(), currency: currency, category: category })
                 .eq('id', group.id)
                 .select()
                 .single()
@@ -240,6 +248,22 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                         </div>
 
                         <div className="form-group">
+                            <label>Category</label>
+                            <select
+                                value={category}
+                                onChange={(e) => setCategory(e.target.value)}
+                                disabled={group.created_by !== currentUser.id}
+                                className={`currency-select ${group.created_by !== currentUser.id ? 'input-disabled' : ''}`}
+                            >
+                                {CATEGORIES.map((cat) => (
+                                    <option key={cat} value={cat}>
+                                        {cat}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="form-group">
                             <label>Currency</label>
                             <select
                                 value={currency}
@@ -263,7 +287,7 @@ export default function GroupSettingsModal({ group, currentUser, onClose, onGrou
                         {(group.created_by === currentUser.id || memberCount === 1) && (
                             <button
                                 type="submit"
-                                disabled={loading || (name === group.name && currency === group.currency)}
+                                disabled={loading || (name === group.name && currency === group.currency && category === (group.category || 'Personal'))}
                                 className="save-btn mb-8"
                             >
                                 {loading ? <div className="spin"></div> : 'Save Changes'}

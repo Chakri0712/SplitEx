@@ -46,6 +46,7 @@ create table if not exists groups (
   created_by uuid references auth.users not null,
   invite_code text unique,
   currency text default 'USD',
+  category text default 'Personal',
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -84,6 +85,7 @@ create table if not exists expense_splits (
 -- ============================================================================
 -- 2.5 INDEXES (Performance Optimizations)
 -- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_groups_category ON groups(category);
 CREATE INDEX IF NOT EXISTS idx_expenses_group_id ON expenses(group_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_paid_by ON expenses(paid_by);
 CREATE INDEX IF NOT EXISTS idx_splits_expense_id ON expense_splits(expense_id);

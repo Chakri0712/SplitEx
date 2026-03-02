@@ -13,12 +13,20 @@ const CURRENCIES = [
     { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
 ]
 
+const CATEGORIES = [
+    'Personal',
+    'Food',
+    'Travel',
+    'Sports'
+]
+
 import { validateName } from '../utils/validation'
 
 export default function CreateGroupModal({ userId, onClose, onGroupCreated }) {
     const [loading, setLoading] = useState(false)
     const [name, setName] = useState('')
     const [currency, setCurrency] = useState('USD')
+    const [category, setCategory] = useState('Personal')
     const [error, setError] = useState(null)
 
     const handleCreate = async (e) => {
@@ -41,6 +49,7 @@ export default function CreateGroupModal({ userId, onClose, onGroupCreated }) {
                     name: name.trim(),
                     created_by: userId,
                     currency: currency,
+                    category: category,
                     invite_code: Math.random().toString(36).substring(2, 8).toUpperCase()
                 })
                 .select()
@@ -97,21 +106,33 @@ export default function CreateGroupModal({ userId, onClose, onGroupCreated }) {
                     </div>
 
                     <div className="form-group">
-                        <label>Currency</label>
-                        <div className="currency-grid">
-                            {CURRENCIES.map((c) => (
-                                <button
-                                    key={c.code}
-                                    type="button"
-                                    className={`currency-btn ${currency === c.code ? 'active' : ''}`}
-                                    onClick={() => setCurrency(c.code)}
-                                >
-                                    <span className="symbol">{c.symbol}</span>
-                                    <span className="code">{c.code}</span>
-                                    {currency === c.code && <Check size={16} className="check-icon" />}
-                                </button>
+                        <label>Category</label>
+                        <select
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            className="currency-select" // Re-using currency-select style for dropdowns
+                        >
+                            {CATEGORIES.map((cat) => (
+                                <option key={cat} value={cat}>
+                                    {cat}
+                                </option>
                             ))}
-                        </div>
+                        </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Currency</label>
+                        <select
+                            value={currency}
+                            onChange={(e) => setCurrency(e.target.value)}
+                            className="currency-select"
+                        >
+                            {CURRENCIES.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                    {c.code} - {c.name}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     <button type="submit" disabled={loading} className="create-btn">
