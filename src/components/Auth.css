@@ -73,7 +73,7 @@
     align-items: center;
 }
 
-.input-group svg {
+.input-group>svg {
     position: absolute;
     left: 14px;
     color: var(--text-muted);
@@ -84,7 +84,7 @@
 
 .input-group input {
     width: 100%;
-    padding: 14px 14px 14px 44px;
+    padding: 14px 44px 14px 44px;
     background: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
@@ -96,6 +96,26 @@
 .input-group input:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.1);
+}
+
+.password-toggle-btn {
+    position: absolute;
+    right: 14px;
+    background: none;
+    border: none;
+    color: var(--primary);
+    /* Gold colored eye */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    z-index: 10;
+    transition: opacity 0.2s;
+}
+
+.password-toggle-btn:hover {
+    opacity: 0.8;
 }
 
 .submit-btn {
