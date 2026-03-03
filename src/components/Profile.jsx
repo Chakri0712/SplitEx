@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { X, LogOut, Mail, User, Globe, RefreshCw, ChevronRight, MessageSquare, Edit2 } from 'lucide-react'
+import { X, Mail, User, Globe, RefreshCw, ChevronRight, MessageSquare, Edit2, Bell } from 'lucide-react'
 import './Profile.css'
 import { validateName } from '../utils/validation'
+import { requestNotificationPermission } from '../utils/firebase'
 
 export default function Profile({ session }) {
     const navigate = useNavigate()
@@ -11,44 +12,66 @@ export default function Profile({ session }) {
     const [isSaving, setIsSaving] = useState(false)
     const [isSigningOut, setIsSigningOut] = useState(false)
     const [isReloading, setIsReloading] = useState(false)
-    const { user } = session
-    const [fullName, setFullName] = useState(user.user_metadata?.full_name || '')
+    const { user } = session || {}
+    const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '')
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
     const [feedbackText, setFeedbackText] = useState('')
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
     const [country, setCountry] = useState('IND')
     const [originalCountry, setOriginalCountry] = useState('IND')
-    const [email] = useState(user.email)
+    const [email] = useState(user?.email || '')
     const [message, setMessage] = useState(null)
     const [error, setError] = useState(null)
+    const [pushEnabled, setPushEnabled] = useState(false)
+    const [isPushLoading, setIsPushLoading] = useState(false)
 
-    // Fetch existing Country from profiles table
+    // Check existing push token status and country from DB
     useEffect(() => {
+        if (!user?.id) return
+
         const fetchProfileData = async () => {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('country')
-                .eq('id', user.id)
-                .single()
+            try {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('country')
+                    .eq('id', user.id)
+                    .maybeSingle()
 
-            if (!error && data) {
-                let loadedCountry = data.country
-                if (!loadedCountry && user.user_metadata?.country) {
-                    loadedCountry = user.user_metadata.country
+                if (!error && data) {
+                    let loadedCountry = data.country
+                    if (!loadedCountry && user.user_metadata?.country) {
+                        loadedCountry = user.user_metadata.country
+                    }
+
+                    if (loadedCountry) {
+                        const map = { 'IN': 'IND', 'US': 'USA', 'CA': 'CAN', 'GB': 'GBR', 'JP': 'JPN', 'AU': 'AUS', 'EU': 'EUR' }
+                        const finalCountry = map[loadedCountry] || loadedCountry
+                        setCountry(finalCountry)
+                        setOriginalCountry(finalCountry)
+                    }
                 }
 
-                if (loadedCountry) {
-                    const map = { 'IN': 'IND', 'US': 'USA', 'CA': 'CAN', 'GB': 'GBR', 'JP': 'JPN', 'AU': 'AUS', 'EU': 'EUR' }
-                    const finalCountry = map[loadedCountry] || loadedCountry
-                    setCountry(finalCountry)
-                    setOriginalCountry(finalCountry)
+                // Check Push Notification status
+                if (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted') {
+                    const { data: tokenData } = await supabase
+                        .from('fcm_tokens')
+                        .select('token')
+                        .eq('user_id', user.id)
+                        .maybeSingle()
+
+                    if (tokenData) {
+                        setPushEnabled(true)
+                    }
                 }
+            } catch (err) {
+                console.error("Error fetching profile data:", err)
             }
         }
         fetchProfileData()
-    }, [user.id])
+    }, [user?.id])
 
     const handleUpdate = async () => {
+        if (!user?.id) return
         setMessage(null)
         setError(null)
 
@@ -114,14 +137,7 @@ export default function Profile({ session }) {
         if (!feedbackText.trim()) return;
         setIsSubmittingFeedback(true);
         try {
-            // Note: Directly sending an email from the client requires a backend endpoint (like Supabase Edge Functions or EmailJS).
-            // For now, we simulate the submission. As the app grows, you can connect this to an edge function
-            // that uses an email provider (Resend, SendGrid) to email "tmchakradhar2000@gmail.com".
             await new Promise((resolve) => setTimeout(resolve, 1000));
-
-            // Optionally, save to a 'feedback' table in Supabase if you prefer logging it into the DB
-            // await supabase.from('feedback').insert([{ user_id: user.id, message: feedbackText, email: user.email }]);
-
             alert("Feedback sent successfully!");
             setFeedbackText('');
             setIsFeedbackOpen(false);
@@ -140,7 +156,55 @@ export default function Profile({ session }) {
         }, 1500)
     }
 
+    const handleTogglePushNotifications = async () => {
+        if (!user?.id) return
+        if (!('Notification' in window)) {
+            alert("This browser does not support push notifications.");
+            return;
+        }
+
+        setIsPushLoading(true);
+
+        try {
+            if (pushEnabled) {
+                const { error: delError } = await supabase.from('fcm_tokens').delete().eq('user_id', user.id);
+                if (!delError) {
+                    setPushEnabled(false);
+                } else {
+                    alert("Failed to disable notifications.");
+                }
+            } else {
+                const vapidKey = "BA5TM6V-YUt3bZGdjfLhtEyZqCb3md5tjzHVcPJCwZGIr3uzltyUtHk_HrAKnK4UMqSaq5WagcFlXVYLvA6ts2I";
+                try {
+                    const token = await requestNotificationPermission(user.id, vapidKey);
+                    if (token) {
+                        setPushEnabled(true);
+                    }
+                } catch (pushErr) {
+                    if ('Notification' in window && Notification.permission === 'denied') {
+                        alert("Notifications are blocked in your browser settings. Please allow them to receive updates.");
+                    } else if (!window.isSecureContext) {
+                        alert("Push setup failed: You are accessing the app over an insecure network (HTTP). Mobile browsers require HTTPS to enable Push Notifications.");
+                    } else {
+                        alert("Push notification setup failed: " + pushErr.message + "\n(On iOS, verify the app is added to your Home Screen)");
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Error toggling push:", err);
+            alert("Error: " + err.message);
+        } finally {
+            setIsPushLoading(false);
+        }
+    }
+
+    if (!session || !user) {
+        return <div className="loading-state">Loading user profile...</div>
+    }
+
     if (viewMode === 'menu') {
+        const initials = (fullName || email || '?').charAt(0).toUpperCase();
+
         return (
             <div className="profile-container" style={{ padding: '0' }}>
                 <header className="profile-header" style={{ padding: '14px' }}>
@@ -150,11 +214,9 @@ export default function Profile({ session }) {
 
                 <main className="profile-content" style={{ padding: '0 14px' }}>
                     <div className="account-menu-wrapper" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-                        {/* User Header */}
                         <div className="account-user-header" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '0 8px 16px 8px' }}>
                             <div className="account-avatar" style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'bold' }}>
-                                {fullName ? fullName.charAt(0).toUpperCase() : email.charAt(0).toUpperCase()}
+                                {initials}
                             </div>
                             <div className="account-details" style={{ flex: 1 }}>
                                 <h2 style={{ fontSize: '1.25rem', margin: 0, color: 'var(--text-primary)' }}>{fullName || 'User'}</h2>
@@ -165,8 +227,40 @@ export default function Profile({ session }) {
                             </button>
                         </div>
 
-                        {/* Menu Items */}
                         <div className="account-menu-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {typeof window !== 'undefined' && 'Notification' in window && (
+                                <div className="account-menu-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'default' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <Bell size={20} className="menu-icon" />
+                                        <span>App Notifications</span>
+                                    </div>
+                                    <div
+                                        onClick={!isPushLoading ? handleTogglePushNotifications : undefined}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            width: '44px',
+                                            height: '24px',
+                                            backgroundColor: pushEnabled ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                                            borderRadius: '12px',
+                                            padding: '2px',
+                                            cursor: isPushLoading ? 'wait' : 'pointer',
+                                            transition: 'background-color 0.3s',
+                                            opacity: isPushLoading ? 0.6 : 1
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: '20px',
+                                            height: '20px',
+                                            backgroundColor: pushEnabled ? '#000' : '#fff',
+                                            borderRadius: '50%',
+                                            transform: pushEnabled ? 'translateX(20px)' : 'translateX(0)',
+                                            transition: 'transform 0.3s, background-color 0.3s'
+                                        }} />
+                                    </div>
+                                </div>
+                            )}
+
                             <button className="account-menu-item" onClick={() => setIsFeedbackOpen(true)}>
                                 <MessageSquare size={20} className="menu-icon" />
                                 <span>Submit Feedback</span>
@@ -178,13 +272,6 @@ export default function Profile({ session }) {
                                 <span>{isReloading ? 'Refreshing...' : 'Reload App'}</span>
                                 <ChevronRight size={20} className="menu-chevron" />
                             </button>
-
-                            {isReloading && (
-                                <div style={{ fontSize: '0.8rem', color: 'var(--primary)', textAlign: 'center', marginTop: '-4px', marginBottom: '8px' }}>
-                                    Fetching latest updates...
-                                </div>
-                            )}
-
                         </div>
 
                         <div style={{ marginTop: 'auto', paddingTop: '24px', paddingBottom: '32px' }}>
@@ -192,11 +279,9 @@ export default function Profile({ session }) {
                                 {isSigningOut ? 'Signing Out...' : 'Logout'}
                             </button>
                         </div>
-
                     </div>
                 </main>
 
-                {/* Feedback Modal */}
                 {isFeedbackOpen && (
                     <div className="modal-overlay" onClick={() => setIsFeedbackOpen(false)}>
                         <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -232,21 +317,8 @@ export default function Profile({ session }) {
                                 </div>
                             </div>
                             <div className="modal-footer" style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                                <button
-                                    className="btn-secondary"
-                                    style={{ flex: 1, padding: '12px', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', border: 'none' }}
-                                    onClick={() => setIsFeedbackOpen(false)}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    className="btn-primary"
-                                    style={{ flex: 1, padding: '12px', borderRadius: '8px', background: 'var(--primary)', color: '#000', border: 'none', fontWeight: 'bold' }}
-                                    onClick={handleSubmitFeedback}
-                                    disabled={isSubmittingFeedback || !feedbackText.trim()}
-                                >
-                                    {isSubmittingFeedback ? 'Submitting...' : 'Submit'}
-                                </button>
+                                <button className="btn-secondary" style={{ flex: 1, padding: '12px', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', border: 'none' }} onClick={() => setIsFeedbackOpen(false)}>Cancel</button>
+                                <button className="btn-primary" style={{ flex: 1, padding: '12px', borderRadius: '8px', background: 'var(--primary)', color: '#000', border: 'none', fontWeight: 'bold' }} onClick={handleSubmitFeedback} disabled={isSubmittingFeedback || !feedbackText.trim()}>{isSubmittingFeedback ? 'Submitting...' : 'Submit'}</button>
                             </div>
                         </div>
                     </div>
@@ -258,9 +330,7 @@ export default function Profile({ session }) {
     return (
         <div className="profile-container">
             <header className="profile-header">
-                <button onClick={() => setViewMode('menu')} className="back-btn">
-                    <X size={24} />
-                </button>
+                <button onClick={() => setViewMode('menu')} className="back-btn"><X size={24} /></button>
                 <h1>Edit Profile</h1>
                 <div className="placeholder"></div>
             </header>
@@ -272,12 +342,7 @@ export default function Profile({ session }) {
                             <label>User Name</label>
                             <div className="input-wrapper">
                                 <User size={20} className="input-icon" />
-                                <input
-                                    type="text"
-                                    value={fullName}
-                                    onChange={(e) => setFullName(e.target.value)}
-                                    className="profile-input"
-                                />
+                                <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="profile-input" />
                             </div>
                         </div>
 
@@ -285,12 +350,7 @@ export default function Profile({ session }) {
                             <label>Email Address</label>
                             <div className="input-wrapper disabled">
                                 <Mail size={20} className="input-icon" />
-                                <input
-                                    type="email"
-                                    value={email}
-                                    disabled
-                                    className="profile-input"
-                                />
+                                <input type="email" value={email} disabled className="profile-input" />
                             </div>
                         </div>
 
@@ -298,20 +358,7 @@ export default function Profile({ session }) {
                             <label>Country</label>
                             <div className="input-wrapper" style={{ position: 'relative' }}>
                                 <Globe size={20} className="input-icon" />
-                                <select
-                                    value={country}
-                                    onChange={(e) => setCountry(e.target.value)}
-                                    className="profile-input"
-                                    style={{
-                                        background: 'transparent',
-                                        width: '100%',
-                                        cursor: 'pointer',
-                                        appearance: 'none',
-                                        WebkitAppearance: 'none',
-                                        paddingRight: '40px',
-                                        paddingLeft: '48px'
-                                    }}
-                                >
+                                <select value={country} onChange={(e) => setCountry(e.target.value)} className="profile-input" style={{ background: 'transparent', width: '100%', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', paddingRight: '40px', paddingLeft: '48px' }}>
                                     <option value="IND" style={{ color: 'black' }}>India</option>
                                     <option value="USA" style={{ color: 'black' }}>United States</option>
                                     <option value="CAN" style={{ color: 'black' }}>Canada</option>
@@ -328,13 +375,7 @@ export default function Profile({ session }) {
                     {message && <div className="success-message-profile">{message}</div>}
 
                     <div className="profile-actions">
-                        <button
-                            className="update-btn"
-                            onClick={handleUpdate}
-                            disabled={isSaving || (fullName === user.user_metadata?.full_name && country === originalCountry)}
-                        >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
-                        </button>
+                        <button className="update-btn" onClick={handleUpdate} disabled={isSaving || (fullName === user?.user_metadata?.full_name && country === originalCountry)}>{isSaving ? 'Saving...' : 'Save Changes'}</button>
                     </div>
                 </div>
             </main>
