@@ -40,11 +40,14 @@ export default function Auth() {
 
         try {
             if (isLogin) {
-                const { error } = await supabase.auth.signInWithPassword({
-                    email,
-                    password,
-                })
-                if (error) throw error
+                const controller = new AbortController()
+                const loginTimeout = setTimeout(() => controller.abort(), 10000)
+                try {
+                    const { error } = await supabase.auth.signInWithPassword({ email, password })
+                    if (error) throw error
+                } finally {
+                    clearTimeout(loginTimeout)
+                }
             } else {
                 // Auto-detect country
                 let detectedCountry = 'IND' // Default to India
