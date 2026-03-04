@@ -22,7 +22,7 @@ export default function Profile({ session }) {
     const [email] = useState(user?.email || '')
     const [message, setMessage] = useState(null)
     const [error, setError] = useState(null)
-    const [pushEnabled, setPushEnabled] = useState(false)
+    const [pushEnabled, setPushEnabled] = useState(() => localStorage.getItem('push_enabled') === 'true')
     const [isPushLoading, setIsPushLoading] = useState(false)
 
     // Check existing push token status and country from DB
@@ -59,9 +59,12 @@ export default function Profile({ session }) {
                         .eq('user_id', user.id)
                         .maybeSingle()
 
-                    if (tokenData) {
-                        setPushEnabled(true)
-                    }
+                    const enabled = !!tokenData
+                    setPushEnabled(enabled)
+                    localStorage.setItem('push_enabled', enabled ? 'true' : 'false')
+                } else {
+                    setPushEnabled(false)
+                    localStorage.setItem('push_enabled', 'false')
                 }
             } catch (err) {
                 console.error("Error fetching profile data:", err)
@@ -170,17 +173,26 @@ export default function Profile({ session }) {
                 const { error: delError } = await supabase.from('fcm_tokens').delete().eq('user_id', user.id);
                 if (!delError) {
                     setPushEnabled(false);
+                    localStorage.setItem('push_enabled', 'false');
                 } else {
                     alert("Failed to disable notifications.");
                 }
             } else {
+                // Optimistic: flip on immediately so the toggle feels instant
+                setPushEnabled(true);
                 const vapidKey = "BA5TM6V-YUt3bZGdjfLhtEyZqCb3md5tjzHVcPJCwZGIr3uzltyUtHk_HrAKnK4UMqSaq5WagcFlXVYLvA6ts2I";
                 try {
                     const token = await requestNotificationPermission(user.id, vapidKey);
                     if (token) {
-                        setPushEnabled(true);
+                        localStorage.setItem('push_enabled', 'true');
+                    } else {
+                        // Roll back — permission denied or token fetch failed
+                        setPushEnabled(false);
+                        localStorage.setItem('push_enabled', 'false');
                     }
                 } catch (pushErr) {
+                    setPushEnabled(false);
+                    localStorage.setItem('push_enabled', 'false');
                     if ('Notification' in window && Notification.permission === 'denied') {
                         alert("Notifications are blocked in your browser settings. Please allow them to receive updates.");
                     } else if (!window.isSecureContext) {

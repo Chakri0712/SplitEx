@@ -70,13 +70,27 @@ serve(async (req) => {
         };
 
         // Send via Firebase Admin
-        const response = await admin.messaging().send(message);
-        console.log('Successfully sent message:', response);
+        try {
+            const response = await admin.messaging().send(message);
+            console.log('Successfully sent message:', response);
 
-        return new Response(
-            JSON.stringify({ success: true, messageId: response }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-        );
+            return new Response(
+                JSON.stringify({ success: true, messageId: response }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+            );
+        } catch (fcmError: any) {
+            // Stale token: Firebase no longer recognises it — clean it up so the user
+            // isn't stuck in a broken push state until they manually toggle off/on.
+            if (fcmError?.errorInfo?.code === 'messaging/registration-token-not-registered') {
+                console.warn('Stale FCM token detected — removing from DB:', tokenData.token);
+                await supabaseClient.from('fcm_tokens').delete().eq('token', tokenData.token);
+                return new Response(
+                    JSON.stringify({ message: 'Stale token removed. User must re-enable push.' }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+                );
+            }
+            throw fcmError;
+        }
 
     } catch (error) {
         console.error('Error handling push notification:', error);
