@@ -1,6 +1,6 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
-import { X, Pencil, Trash2, Calendar, User, CreditCard } from 'lucide-react'
+import { X, Pencil, Trash2, Calendar, User, CreditCard, Users } from 'lucide-react'
 import { getCurrencySymbol } from '../utils/currency'
 import { formatDate, getMemberName } from '../utils/formatters'
 import './AddExpenseModal.css' // Reusing modal styles
@@ -35,10 +35,10 @@ export default function ExpenseDetailsModal({ expense, group, members, currentUs
 
                     {/* Amount & Description */}
                     <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '2.5rem', fontWeight: '800', color: 'var(--primary)' }}>
+                        <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--primary)', lineHeight: '1.2' }}>
                             {currencySymbol}{expense.amount}
                         </div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: '600', color: 'var(--text-primary)', marginTop: '0.5rem' }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-primary)', marginTop: '0.2rem' }}>
                             {expense.description}
                         </div>
                     </div>
@@ -68,6 +68,38 @@ export default function ExpenseDetailsModal({ expense, group, members, currentUs
                             <span style={{ fontWeight: '600', fontSize: '1rem' }}>{formatDate(expense.date)}</span>
                         </div>
                     </div>
+
+                    {/* Split Details */}
+                    {expense.category !== 'settlement' && expense.splits && expense.splits.length > 0 && (
+                        <div style={{ background: 'var(--bg-input)', padding: '0.8rem 1rem', borderRadius: '12px' }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Users size={16} /> Split Details
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {expense.splits.map((split, idx) => (
+                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{
+                                                width: '24px', height: '24px', borderRadius: '50%',
+                                                background: split.user_id === currentUser.id ? 'var(--primary)' : 'var(--bg-card)',
+                                                color: split.user_id === currentUser.id ? '#000' : 'var(--text-primary)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: '0.75rem', fontWeight: 'bold'
+                                            }}>
+                                                {getDisplayName(split.user_id).charAt(0).toUpperCase()}
+                                            </div>
+                                            <span style={{ fontSize: '0.9rem', fontWeight: split.user_id === currentUser.id ? '600' : '500' }}>
+                                                {getDisplayName(split.user_id)} {split.user_id === currentUser.id && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'normal', marginLeft: '4px' }}>(You)</span>}
+                                            </span>
+                                        </div>
+                                        <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>
+                                            {currencySymbol}{parseFloat(split.owe_amount).toFixed(2)}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Actions */}
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
