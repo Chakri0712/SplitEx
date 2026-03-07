@@ -172,25 +172,33 @@ export default function FriendsSummary({ session }) {
 
                 if (Math.abs(totalNet) < 0.01) continue // no meaningful debt
 
-                // 11. Check for pending settlements between me and this friend across shared groups
-                const sharedExpenseIds = activeExpenses
-                    .filter(e => sharedGroupIds.has(e.group_id))
-                    .map(e => e.id)
-
-                // Also check ALL expenses (including excluded) for pending status
-                const allSharedExpenseIds = expenses
-                    .filter(e => sharedGroupIds.has(e.group_id))
-                    .map(e => e.id)
+                // 11. Build set of settlement expense IDs strictly between me and this friend
+                //     This prevents settlements between the friend and a third party (in a shared group)
+                //     from bleeding into this friend-pair view.
+                const pairSettlementExpenseIds = new Set(
+                    expenses
+                        .filter(e =>
+                            e.category === 'settlement' &&
+                            sharedGroupIds.has(e.group_id) &&
+                            (e.paid_by === userId || e.paid_by === friendId)
+                        )
+                        .filter(e => {
+                            const splits = allSplits.filter(s => s.expense_id === e.id)
+                            if (e.paid_by === userId) return splits.some(s => s.user_id === friendId)
+                            if (e.paid_by === friendId) return splits.some(s => s.user_id === userId)
+                            return false
+                        })
+                        .map(e => e.id)
+                )
 
                 const pendingSettlements = allSettlements.filter(s =>
-                    allSharedExpenseIds.includes(s.expense_id) &&
-                    (s.settlement_status === 'pending_utr' || s.settlement_status === 'pending_confirmation') &&
-                    (s.initiated_by === userId || s.initiated_by === friendId)
+                    pairSettlementExpenseIds.has(s.expense_id) &&
+                    (s.settlement_status === 'pending_utr' || s.settlement_status === 'pending_confirmation')
                 )
 
                 // Check for pending cross-group batch initiated BY THIS friend TO ME
                 const pendingIncomingBatch = allSettlements.find(s =>
-                    allSharedExpenseIds.includes(s.expense_id) &&
+                    pairSettlementExpenseIds.has(s.expense_id) &&
                     s.settlement_status === 'pending_confirmation' &&
                     s.cross_group_batch_id &&
                     s.initiated_by === friendId
