@@ -71,10 +71,7 @@ export default function FriendsSummary({ session }) {
                 supabase
                     .from('expense_splits')
                     .select('expense_id, user_id, owe_amount')
-                    .in('expense_id',
-                        // Supabase subquery: only splits for expenses in our groups
-                        supabase.from('expenses').select('id').in('group_id', groupIds)
-                    ),
+                    .in('group_id', groupIds),
                 supabase
                     .from('group_members')
                     .select('group_id, user_id, profiles(id, full_name)')
