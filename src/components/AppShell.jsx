@@ -26,7 +26,9 @@ export default function AppShell({ session }) {
         <div className="app-shell">
             {/* Main Scrollable Content */}
             <main className="shell-content">
-                <Outlet />
+                <div key={location.key} className="page-enter">
+                    <Outlet />
+                </div>
             </main>
 
             {/* Bottom Navigation - Only visible if logged in */}

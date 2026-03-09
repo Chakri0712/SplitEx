@@ -5,6 +5,25 @@ import { getCurrencySymbol } from '../utils/currency'
 import { HandCoins, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import './FriendsSummary.css'
 
+function FriendsSkeleton() {
+    return (
+        <div className="friends-list">
+            {[1, 2, 3].map(i => (
+                <div key={i} className="friend-card" style={{ pointerEvents: 'none' }}>
+                    <div className="friend-card-header" style={{ cursor: 'default' }}>
+                        <div className="skeleton skeleton-avatar friend-avatar" style={{ width: 44, height: 44 }} />
+                        <div className="friend-info" style={{ flex: 1 }}>
+                            <div className="skeleton skeleton-text" style={{ width: '45%', marginBottom: 6 }} />
+                            <div className="skeleton skeleton-text-sm" style={{ width: '30%' }} />
+                        </div>
+                        <div className="skeleton skeleton-text" style={{ width: 60 }} />
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
 export default function FriendsSummary({ session }) {
     const [loading, setLoading] = useState(true)
     const [friendNets, setFriendNets] = useState([]) // [{ friendId, name, currency, netAmount, groupBreakdown, hasPending }]
@@ -44,21 +63,22 @@ export default function FriendsSummary({ session }) {
             groups.forEach(g => { groupMap[g.id] = g })
 
             // 2. Fetch all expenses, splits, members, settlement_details in parallel
-            const [expRes, splitRes, allMembersRes, settlRes] = await Promise.all([
+            const [expRes, splitRes, allMembersRes] = await Promise.all([
                 supabase
                     .from('expenses')
                     .select('id, group_id, paid_by, amount, category')
                     .in('group_id', groupIds),
                 supabase
                     .from('expense_splits')
-                    .select('expense_id, user_id, owe_amount'),
+                    .select('expense_id, user_id, owe_amount')
+                    .in('expense_id',
+                        // Supabase subquery: only splits for expenses in our groups
+                        supabase.from('expenses').select('id').in('group_id', groupIds)
+                    ),
                 supabase
                     .from('group_members')
                     .select('group_id, user_id, profiles(id, full_name)')
-                    .in('group_id', groupIds),
-                supabase
-                    .from('settlement_details')
-                    .select('expense_id, settlement_status, cross_group_batch_id, initiated_by, confirmed_by')
+                    .in('group_id', groupIds)
             ])
 
             if (expRes.error) throw expRes.error
@@ -69,6 +89,15 @@ export default function FriendsSummary({ session }) {
             const expenses = expRes.data || []
             const allSplits = splitRes.data || []
             const allMemberRows = allMembersRes.data || []
+
+            // Scope settlement_details to our expense IDs only (avoids full-table scan)
+            const groupExpenseIds = expenses.map(e => e.id)
+            const settlRes = groupExpenseIds.length > 0
+                ? await supabase
+                    .from('settlement_details')
+                    .select('expense_id, settlement_status, cross_group_batch_id, initiated_by, confirmed_by')
+                    .in('expense_id', groupExpenseIds)
+                : { data: [] }
             const allSettlements = settlRes.data || []
 
             // 3. Build profile map from group_members
@@ -360,7 +389,7 @@ export default function FriendsSummary({ session }) {
             )}
 
             {loading ? (
-                <div className="friends-loading">Loading...</div>
+                <FriendsSkeleton />
             ) : friendNets.length === 0 ? (
                 <div className="friends-empty">
                     <HandCoins size={48} opacity={0.3} />

@@ -26,6 +26,8 @@
     /* Smooth scroll on iOS */
     scroll-behavior: smooth;
     position: relative;
+    will-change: scroll-position;
+    contain: layout style;
 }
 
 /* Hide scrollbar but keep functionality */
