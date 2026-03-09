@@ -19,7 +19,9 @@ function App() {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        const timeout = new Promise((resolve) => setTimeout(() => resolve({ data: { session: null } }), 5000))
+
+        Promise.race([supabase.auth.getSession(), timeout]).then(({ data: { session } }) => {
             setSession(session)
             setLoading(false)
         })
@@ -28,6 +30,7 @@ function App() {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session)
+            setLoading(false)
         })
 
         return () => subscription.unsubscribe()

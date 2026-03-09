@@ -67,6 +67,20 @@
     font-size: 0.9rem;
 }
 
+.payer-notes {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    max-width: 60%;
+    text-align: right;
+    font-size: 0.95rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
 .truncated-name {
     max-width: 150px;
     /* Adjust based on your preference */

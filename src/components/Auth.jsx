@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
-import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react'
+import { Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import './Auth.css'
 
@@ -11,6 +11,7 @@ export default function Auth() {
     const [isForgotPassword, setIsForgotPassword] = useState(false)
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
     const [fullName, setFullName] = useState('')
     const [message, setMessage] = useState(null)
     const [error, setError] = useState(null)
@@ -39,11 +40,14 @@ export default function Auth() {
 
         try {
             if (isLogin) {
-                const { error } = await supabase.auth.signInWithPassword({
-                    email,
-                    password,
-                })
-                if (error) throw error
+                const controller = new AbortController()
+                const loginTimeout = setTimeout(() => controller.abort(), 10000)
+                try {
+                    const { error } = await supabase.auth.signInWithPassword({ email, password })
+                    if (error) throw error
+                } finally {
+                    clearTimeout(loginTimeout)
+                }
             } else {
                 // Auto-detect country
                 let detectedCountry = 'IND' // Default to India
@@ -240,12 +244,20 @@ export default function Auth() {
                     <div className="input-group">
                         <Lock size={20} />
                         <input
-                            type="password"
+                            type={showPassword ? 'text' : 'password'}
                             placeholder="Password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
                         />
+                        <button
+                            type="button"
+                            className="password-toggle-btn"
+                            onClick={() => setShowPassword(!showPassword)}
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
                     </div>
 
                     {error && <div className="error-message">{error}</div>}

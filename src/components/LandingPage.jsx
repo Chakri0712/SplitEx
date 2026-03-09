@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Activity, Users2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Activity, Users2, Bell } from 'lucide-react';
 import './LandingPage.css';
 
 export default function LandingPage({ session }) {
@@ -35,7 +35,7 @@ export default function LandingPage({ session }) {
 
                     <h1>
                         The easiest way to <br />
-                        share expenses <span className="highlight">fairly</span>.
+                        share expenses
                     </h1>
                     <p className="hero-subtext">
                         Track bills, shared expenses, and debts with friends.
@@ -91,6 +91,11 @@ export default function LandingPage({ session }) {
                         <Users2 className="feature-icon" />
                         <h3>Cross-Group Settlements</h3>
                         <p>Settle debts across multiple groups in one tap. Net balances with friends, no matter how many groups you share.</p>
+                    </div>
+                    <div className="feature-card">
+                        <Bell className="feature-icon" />
+                        <h3>Push Notifications</h3>
+                        <p>Get instant alerts when friends add expenses or settle up even when you are away from the app.</p>
                     </div>
                 </div>
             </section>

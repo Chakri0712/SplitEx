@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient'
 import { getCurrencySymbol } from '../utils/currency'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info, HandCoins, ArrowRight, UserPlus, Users, Check, Copy } from 'lucide-react'
+import FilterSelect from './FilterSelect'
 import AddExpenseModal from './AddExpenseModal'
 import SettleUpModal from './SettleUpModal'
 import GroupSettingsModal from './GroupSettingsModal'
@@ -33,12 +34,14 @@ export default function GroupDetails({ session, group, onBack }) {
     const [expenseFilter, setExpenseFilter] = useState(searchParams.get('filter') || 'expenses')
     // Settlements Filter State: 'all' or 'my'
     const [settlementsFilterMode, setSettlementsFilterMode] = useState('my') // Start with "Mine"
+    const [settlementStatusFilter, setSettlementStatusFilter] = useState('all') // 'all' | 'confirmed' | 'pending' | 'cancelled'
     const [selectedExpenseForDetails, setSelectedExpenseForDetails] = useState(null)
     const [copied, setCopied] = useState(false)
 
     const updateExpenseFilter = (filter) => {
         setExpenseFilter(filter)
         setSearchParams({ tab: activeTab, filter })
+        if (filter !== 'settlements') setSettlementStatusFilter('all')
     }
 
     const [members, setMembers] = useState([])
@@ -144,7 +147,8 @@ export default function GroupDetails({ session, group, onBack }) {
                     settlement_status: settlementStatusMap[e.id]?.status,
                     settlement_method: settlementStatusMap[e.id]?.method,
                     is_involved: e.paid_by === session.user.id || !!mySplit,
-                    receiver_id: receiverSplit?.user_id
+                    receiver_id: receiverSplit?.user_id,
+                    splits: expSplits
                 }
             })
 
@@ -347,17 +351,20 @@ export default function GroupDetails({ session, group, onBack }) {
 
             // Settlement Filter Logic
             if (e.category === 'settlement') {
-                if (settlementsFilterMode === 'all') return true
-                // "My Settlements" = Involved as Payer OR Receiver
-                if (settlementsFilterMode === 'my') return e.is_involved
-                // "Others" = NOT Involved
-                if (settlementsFilterMode === 'others') return !e.is_involved
+                // "Who" filter
+                if (settlementsFilterMode === 'my' && !e.is_involved) return false
+                if (settlementsFilterMode === 'others' && e.is_involved) return false
+
+                // Status filter
+                if (settlementStatusFilter === 'confirmed') return e.settlement_status === 'confirmed'
+                if (settlementStatusFilter === 'pending') return e.settlement_status === 'pending_utr' || e.settlement_status === 'pending_confirmation'
+                if (settlementStatusFilter === 'cancelled') return e.settlement_status === 'cancelled'
 
                 return true
             }
             return false
         })
-    }, [expenses, expenseFilter, settlementsFilterMode])
+    }, [expenses, expenseFilter, settlementsFilterMode, settlementStatusFilter])
 
     const myDebtsDisplay = useMemo(() => {
         if (expenseFilter !== 'settlements') return null;
@@ -498,26 +505,40 @@ export default function GroupDetails({ session, group, onBack }) {
             {activeTab === 'expenses' && (
                 <div className="expenses-section">
                     <div className="section-header">
-                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                            <select
-                                className="expense-filter-dropdown"
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <FilterSelect
+                                label="View"
                                 value={expenseFilter}
                                 onChange={(e) => updateExpenseFilter(e.target.value)}
-                            >
-                                <option value="expenses">Expenses</option>
-                                <option value="settlements">Settlements</option>
-                            </select>
-                            {/* Settlement Filter Dropdown - In the Corner */}
+                                options={[
+                                    { value: 'expenses', label: 'Expenses' },
+                                    { value: 'settlements', label: 'Settlements' }
+                                ]}
+                            />
                             {expenseFilter === 'settlements' && (
-                                <select
-                                    className="settlement-filter-dropdown"
-                                    value={settlementsFilterMode}
-                                    onChange={(e) => setSettlementsFilterMode(e.target.value)}
-                                >
-                                    <option value="all">All</option>
-                                    <option value="my">Mine</option>
-                                    <option value="others">Others</option>
-                                </select>
+                                <>
+                                    <FilterSelect
+                                        label="Who"
+                                        value={settlementsFilterMode}
+                                        onChange={(e) => setSettlementsFilterMode(e.target.value)}
+                                        options={[
+                                            { value: 'all', label: 'All' },
+                                            { value: 'my', label: 'Mine' },
+                                            { value: 'others', label: 'Others' }
+                                        ]}
+                                    />
+                                    <FilterSelect
+                                        label="Status"
+                                        value={settlementStatusFilter}
+                                        onChange={(e) => setSettlementStatusFilter(e.target.value)}
+                                        options={[
+                                            { value: 'all', label: 'All' },
+                                            { value: 'confirmed', label: 'Confirmed' },
+                                            { value: 'pending', label: 'Pending' },
+                                            { value: 'cancelled', label: 'Cancelled' }
+                                        ]}
+                                    />
+                                </>
                             )}
                         </div>
 

@@ -277,6 +277,7 @@ begin
         insert into expense_splits (expense_id, group_id, user_id, owe_amount)
         values (new_expense_id, p_group_id, (split_record->>'user_id')::uuid, (split_record->>'owe_amount')::numeric);
     end loop;
+    perform public.notify_single_expense(new_expense_id, 'INSERT', p_created_by);
     return new_expense_id;
 end;
 $$;
@@ -304,6 +305,7 @@ begin
         insert into expense_splits (expense_id, group_id, user_id, owe_amount)
         values (p_expense_id, p_group_id, (split_record->>'user_id')::uuid, (split_record->>'owe_amount')::numeric);
     end loop;
+    perform public.notify_single_expense(p_expense_id, 'UPDATE', p_updated_by);
 end;
 $$;
 
@@ -330,6 +332,7 @@ begin
         case when p_settlement_status = 'confirmed' then p_created_by else null end,
         case when p_settlement_status = 'confirmed' then now() else null end
     );
+    perform public.notify_single_expense(new_expense_id, 'INSERT', p_created_by);
     return new_expense_id;
 end;
 $$;
@@ -413,70 +416,148 @@ create trigger on_notification_created
   after insert on notifications
   for each row execute procedure public.cleanup_notifications();
 
--- 4.5 Universal Expense Trigger (Insert/Update/Delete + Settlements)
-create or replace function public.handle_expense_changes()
-returns trigger as $$
-declare
-  target_user_id uuid;
-  group_name text;
-  record_data record;
-  is_settlement boolean;
+-- 4.4.5 Push Helper
+create or replace function public.send_push_to_user(
+  p_user_id uuid,
+  p_title   text,
+  p_body    text
+) returns void language plpgsql security definer as $$
 begin
-  if (TG_OP = 'DELETE') then record_data := old; else record_data := new; end if;
-  select name into group_name from groups where id = record_data.group_id;
-  is_settlement := (record_data.category = 'settlement');
-
-  if (TG_OP = 'INSERT') then
-    for target_user_id in 
-      select user_id from group_members where group_id = record_data.group_id and user_id != record_data.created_by
-    loop
-      insert into notifications (user_id, type, title, message, data)
-      values (
-        target_user_id,
-        CASE WHEN is_settlement THEN 'settlement_created' ELSE 'expense_created' END,
-        CASE WHEN is_settlement THEN 'New Settlement Request' ELSE 'New Expense in ' || group_name END,
-        CASE WHEN is_settlement THEN 'Settlement of ' || record_data.amount || ' proposed' ELSE 'Added: ' || record_data.description || ' (' || record_data.amount || ')' END,
-        jsonb_build_object('group_id', record_data.group_id, 'expense_id', record_data.id)
-      );
-    end loop;
-    return new;
-  end if;
-
-  if (TG_OP = 'UPDATE' and not is_settlement) then
-    if (new.amount != old.amount or new.description != old.description) then
-       for target_user_id in 
-          select user_id from group_members where group_id = new.group_id and user_id != new.updated_by
-       loop
-          insert into notifications (user_id, type, title, message, data)
-          values (
-            target_user_id, 'expense_updated', 'Expense Updated', 'Updated: ' || new.description,
-            jsonb_build_object('group_id', new.group_id, 'expense_id', new.id)
-          );
-       end loop;
-    end if;
-    return new;
-  end if;
-
-  if (TG_OP = 'DELETE') then
-     for target_user_id in select user_id from group_members where group_id = old.group_id loop
-        insert into notifications (user_id, type, title, message, data)
-        values (
-          target_user_id,
-          CASE WHEN is_settlement THEN 'settlement_deleted' ELSE 'expense_deleted' END,
-          CASE WHEN is_settlement THEN 'Settlement Cancelled' ELSE 'Expense Deleted' END,
-          CASE WHEN is_settlement THEN 'Settlement of ' || old.amount || ' removed' ELSE 'Expense "' || old.description || '" removed' END,
-          jsonb_build_object('group_id', old.group_id)
-        );
-     end loop;
-     return old;
-  end if;
-  return null;
+  perform net.http_post(
+    url     := 'https://ryjhfcfyglaabpowoxwk.supabase.co/functions/v1/send-push',
+    headers := jsonb_build_object('Content-Type', 'application/json'),
+    body    := jsonb_build_object(
+      'targetUserId', p_user_id,
+      'title',        p_title,
+      'body',         p_body
+    )
+  );
 end;
-$$ language plpgsql security definer;
+$$;
 
-create trigger on_expense_change
-  after insert or update or delete on expenses
-  for each row execute procedure public.handle_expense_changes();
+-- 4.5 Single Notification Function (Triggered by RPCs)
+create or replace function public.notify_single_expense(
+  p_expense_id uuid,
+  p_action text,
+  p_actor_id uuid
+) returns void language plpgsql security definer as $$
+declare
+  exp_rec record;
+  group_name text;
+  actor_name text;
+  target_user_id uuid;
+  is_sett_create boolean;
+  notif_type text;
+  notif_title text;
+  notif_msg_inapp text;
+  notif_msg_push text;
+begin
+  select * into exp_rec from expenses where id = p_expense_id;
+  if not found then return; end if;
+
+  select name into group_name from groups where id = exp_rec.group_id;
+  select split_part(full_name, ' ', 1) into actor_name from profiles where id = p_actor_id;
+  
+  is_sett_create := (exp_rec.category = 'settlement' and p_action = 'INSERT');
+
+  if p_action = 'INSERT' then
+    if is_sett_create then
+       notif_type := 'settlement_created';
+       notif_title := 'New Settlement Request';
+       notif_msg_inapp := 'Settlement of ' || exp_rec.amount || ' proposed';
+       notif_msg_push := 'A settlement was created by ' || coalesce(actor_name, 'Someone') || ' in ' || coalesce(group_name, 'a group');
+    else
+       notif_type := 'expense_created';
+       notif_title := 'Expense Added';
+       notif_msg_inapp := 'Added: ' || exp_rec.description || ' (' || exp_rec.amount || ')';
+       notif_msg_push := '"' || exp_rec.description || '" of ' || exp_rec.amount || ' was added by ' || coalesce(actor_name, 'Someone') || ' in ' || coalesce(group_name, 'a group');
+    end if;
+  elsif p_action = 'UPDATE' and exp_rec.category != 'settlement' then
+    notif_type := 'expense_updated';
+    notif_title := 'Expense Edited';
+    notif_msg_inapp := 'Updated: ' || exp_rec.description;
+    notif_msg_push := '"' || exp_rec.description || '" of ' || exp_rec.amount || ' was edited by ' || coalesce(actor_name, 'Someone') || ' in ' || coalesce(group_name, 'a group');
+  else
+    return;
+  end if;
+
+  for target_user_id in 
+    select distinct user_id from (
+      select user_id from expense_splits where expense_id = p_expense_id
+      union
+      select exp_rec.paid_by
+    ) involved
+    where user_id != p_actor_id
+  loop
+    insert into notifications (user_id, type, title, message, data)
+    values (target_user_id, notif_type, notif_title, notif_msg_inapp, jsonb_build_object('group_id', exp_rec.group_id, 'expense_id', exp_rec.id));
+    
+    begin
+        execute format('select public.send_push_to_user(%L, %L, %L)', target_user_id, notif_title, notif_msg_push);
+    exception when undefined_function then
+    end;
+  end loop;
+end;
+$$;
+
+-- 4.6 Unified Expense Delete Trigger
+create or replace function public.notify_expense_deleted_trigger()
+returns trigger language plpgsql security definer as $$
+declare
+  actor_id uuid;
+  actor_name text;
+  group_name text;
+  target_user_id uuid;
+  is_settlement boolean;
+  notif_type text;
+  notif_title text;
+  notif_msg_inapp text;
+  notif_msg_push text;
+begin
+  actor_id := coalesce(auth.uid(), old.updated_by, old.paid_by);
+  select split_part(full_name, ' ', 1) into actor_name from profiles where id = actor_id;
+  select name into group_name from groups where id = old.group_id;
+  
+  is_settlement := (old.category = 'settlement');
+
+  if is_settlement then
+    notif_type := 'settlement_deleted';
+    notif_title := 'Settlement Cancelled';
+    notif_msg_inapp := 'Settlement of ' || old.amount || ' removed';
+    notif_msg_push := 'A settlement was cancelled by ' || coalesce(actor_name, 'Someone') || ' in ' || coalesce(group_name, 'a group');
+  else
+    notif_type := 'expense_deleted';
+    notif_title := 'Expense Deleted';
+    notif_msg_inapp := 'Expense "' || old.description || '" removed';
+    notif_msg_push := '"' || old.description || '" was deleted by ' || coalesce(actor_name, 'Someone') || ' in ' || coalesce(group_name, 'a group');
+  end if;
+
+  for target_user_id in 
+    select distinct user_id from (
+      select user_id from expense_splits where expense_id = old.id
+      union
+      select old.paid_by
+    ) involved
+    where user_id != actor_id
+  loop
+    insert into notifications (user_id, type, title, message, data)
+    values (target_user_id, notif_type, notif_title, notif_msg_inapp, jsonb_build_object('group_id', old.group_id));
+    
+    begin
+       execute format('select public.send_push_to_user(%L, %L, %L)', target_user_id, notif_title, notif_msg_push);
+    exception when undefined_function then
+    end;
+  end loop;
+
+  return old;
+end;
+$$;
+
+drop trigger if exists on_expense_delete_unified on expenses;
+create trigger on_expense_delete_unified
+  before delete on expenses
+  for each row execute procedure public.notify_expense_deleted_trigger();
+
 
 -- 4.6 Settlement Status Trigger
 create or replace function public.handle_settlement_updates()
@@ -486,6 +567,7 @@ declare
   group_name text;
   initiator_id uuid;
   payer_id uuid;
+  actor_name text;
 begin
   select e.group_id, e.created_by, e.paid_by into group_id, initiator_id, payer_id
   from expenses e where e.id = new.expense_id;
@@ -500,6 +582,14 @@ begin
         'Settlement in ' || group_name || ' is now ' || new.settlement_status,
         jsonb_build_object('group_id', group_id, 'expense_id', new.expense_id)
       );
+      
+      select split_part(full_name, ' ', 1) into actor_name from profiles where id = coalesce(new.confirmed_by, payer_id);
+      
+      begin
+         execute format('select public.send_push_to_user(%L, %L, %L)', initiator_id, 'Settlement ' || initcap(replace(new.settlement_status, '_', ' ')), 'A settlement was ' || lower(replace(new.settlement_status, '_', ' ')) || ' by ' || coalesce(actor_name, 'Someone') || ' in ' || group_name);
+      exception when undefined_function then
+      end;
+
       -- Notify Payer if confirmed
       if (payer_id != initiator_id AND new.settlement_status = 'confirmed') then
         insert into notifications (user_id, type, title, message, data)
@@ -508,6 +598,8 @@ begin
           'Settlement in ' || group_name || ' is now confirmed',
           jsonb_build_object('group_id', group_id, 'expense_id', new.expense_id)
         );
+        -- In our schema, payer = the person who is owed. initiator = the person paying.
+        -- When confirmed, the initiator is notified above. The payer is notified here.
       end if;
   end if;
   return new;

@@ -25,8 +25,10 @@ SplitEx is a premium, mobile-first Progressive Web App (PWA) for managing shared
 
 ### 🔔 Real-Time Notifications
 - In-app notification bell with unread count badge
-- Notifications for: expense added/edited/deleted, settlement created/updated/cancelled
-- Powered by **Supabase Realtime** (PostgreSQL triggers → push to client)
+- **Push Notifications** powered by Firebase Cloud Messaging and Service Workers
+- Receive instant alerts when expenses are added, edited, or deleted
+- Stay updated when settlements are created, confirmed, or cancelled
+- Seamless integration with Supabase Database Triggers and Edge Functions
 - Auto-cleanup: notifications older than 2 days are purged automatically
 
 ### 👥 Groups

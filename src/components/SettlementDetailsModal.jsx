@@ -382,7 +382,7 @@ export default function SettlementDetailsModal({ expense, currentUser, members, 
                             {/* Payer Notes (Mandatory) */}
                             <div className="detail-row" style={{ alignItems: 'flex-start' }}>
                                 <span className="detail-label">Payer Notes</span>
-                                <span className="detail-value" style={{ fontStyle: 'italic', color: 'var(--text-primary)' }}>
+                                <span className="payer-notes" style={{ fontStyle: 'italic', color: 'var(--text-primary)' }}>
                                     "{expense.description}"
                                 </span>
                             </div>
