@@ -198,10 +198,15 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
                 const splitAmount = parseFloat((totalAmount / members.length).toFixed(2)) // Initial rough split
 
                 // create basic equal splits
-                splits = members.map(member => ({
-                    user_id: member.id,
-                    owe_amount: splitAmount
-                }))
+                splits = members.reduce((acc, member) => {
+                    if (splitAmount > 0) {
+                        acc.push({
+                            user_id: member.id,
+                            owe_amount: splitAmount
+                        })
+                    }
+                    return acc;
+                }, [])
 
                 // Fix penny rounding error
                 const currentSum = splits.reduce((sum, s) => sum + s.owe_amount, 0)
@@ -214,10 +219,16 @@ export default function AddExpenseModal({ group, currentUser, members, onClose, 
 
             } else {
                 // UNEQUAL
-                splits = members.map(member => ({
-                    user_id: member.id,
-                    owe_amount: parseFloat(customSplits[member.id]) || 0
-                }))
+                splits = members.reduce((acc, member) => {
+                    const oweAmount = parseFloat(customSplits[member.id]) || 0;
+                    if (oweAmount > 0) {
+                        acc.push({
+                            user_id: member.id,
+                            owe_amount: oweAmount
+                        })
+                    }
+                    return acc;
+                }, [])
             }
 
             if (expenseToEdit) {
