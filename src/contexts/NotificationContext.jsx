@@ -115,11 +115,11 @@ export function NotificationProvider({ children, session }) {
         let unsubscribeFCM = null
         if (messaging) {
             unsubscribeFCM = onMessage(messaging, (payload) => {
-                const title = payload.notification?.title || 'SplitEx'
-                const body = payload.notification?.body || ''
-                if (Notification.permission === 'granted') {
-                    new Notification(title, { body, icon: '/logo2.png' })
-                }
+                // Firebase foreground message received.
+                // We rely on Supabase Realtime + showToast for in-app UI alerts.
+                // Removing manual `new Notification()` to prevent duplicate OS-level pushes
+                // when the app is open.
+                console.log('Foreground push received:', payload.notification?.title);
             })
         }
 

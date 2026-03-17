@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import AppShell from './components/AppShell'
 import LandingPage from './components/LandingPage'
+import SplashScreen from './components/SplashScreen'
 import { NotificationProvider } from './contexts/NotificationContext'
 
 // Lazy-loaded route components — only downloaded when the route is visited
@@ -19,9 +20,8 @@ function App() {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        const timeout = new Promise((resolve) => setTimeout(() => resolve({ data: { session: null } }), 5000))
-
-        Promise.race([supabase.auth.getSession(), timeout]).then(({ data: { session } }) => {
+        // Resolve loading as soon as session state is known — no artificial timeout
+        supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session)
             setLoading(false)
         })
@@ -37,12 +37,12 @@ function App() {
     }, [])
 
     if (loading) {
-        return <div className="loading-state">Loading app...</div>
+        return <SplashScreen />
     }
 
     return (
         <Router>
-            <Suspense fallback={<div className="loading-state">Loading...</div>}>
+            <Suspense fallback={<SplashScreen />}>
                 <Routes>
                     {/* Standalone Auth Routes (no AppShell) */}
                     <Route

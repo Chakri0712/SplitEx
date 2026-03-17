@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../supabaseClient'
 import { getCurrencySymbol } from '../utils/currency'
 import { useSearchParams } from 'react-router-dom'
@@ -12,9 +12,71 @@ import SettlementDetailsModal from './SettlementDetailsModal'
 import ExpenseDetailsModal from './ExpenseDetailsModal'
 import './GroupDetails.css'
 
+// --- Skeleton Loaders ---
+function ExpensesSkeleton() {
+    return (
+        <div className="expenses-list">
+            {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="expense-item" style={{ pointerEvents: 'none' }}>
+                    <div className="expense-date" style={{ gap: 4 }}>
+                        <div className="skeleton skeleton-text-sm" style={{ width: 28 }} />
+                        <div className="skeleton skeleton-text" style={{ width: 22 }} />
+                    </div>
+                    <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0 }} />
+                    <div className="expense-info" style={{ flex: 1 }}>
+                        <div className="skeleton skeleton-text" style={{ width: '60%', marginBottom: 6 }} />
+                        <div className="skeleton skeleton-text-sm" style={{ width: '40%' }} />
+                    </div>
+                    <div className="skeleton skeleton-text" style={{ width: 60 }} />
+                </div>
+            ))}
+        </div>
+    )
+}
+
+function BalancesSkeleton() {
+    return (
+        <div className="balances-view">
+            <div className="total-card">
+                <div className="skeleton skeleton-text" style={{ width: '50%', marginBottom: 10 }} />
+                <div className="skeleton skeleton-text" style={{ width: '35%', height: 28 }} />
+            </div>
+            <div className="member-spending-list">
+                <div className="skeleton skeleton-text" style={{ width: '40%', marginBottom: 12 }} />
+                {[1, 2, 3].map(i => (
+                    <div key={i} className="member-spending-item" style={{ pointerEvents: 'none' }}>
+                        <div className="skeleton" style={{ width: 12, height: 12, borderRadius: '50%', flexShrink: 0 }} />
+                        <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between' }}>
+                            <div className="skeleton skeleton-text-sm" style={{ width: '40%' }} />
+                            <div className="skeleton skeleton-text-sm" style={{ width: '25%' }} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+function MembersSkeleton() {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {[1, 2, 3].map(i => (
+                <div key={i} className="member-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg-input)', borderRadius: '8px', pointerEvents: 'none' }}>
+                    <div className="skeleton skeleton-avatar" style={{ width: 40, height: 40 }} />
+                    <div style={{ flex: 1 }}>
+                        <div className="skeleton skeleton-text" style={{ width: '50%', marginBottom: 6 }} />
+                        <div className="skeleton skeleton-text-sm" style={{ width: '30%' }} />
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
 export default function GroupDetails({ session, group, onBack }) {
     const [expenses, setExpenses] = useState([])
     const [loading, setLoading] = useState(true)
+    const isFirstLoad = useRef(true)
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false)
     const [expenseToEdit, setExpenseToEdit] = useState(null)
     const [isSettleModalOpen, setIsSettleModalOpen] = useState(false)
@@ -293,6 +355,7 @@ export default function GroupDetails({ session, group, onBack }) {
             console.error('Error fetching data:', error)
         } finally {
             setLoading(false)
+            isFirstLoad.current = false
         }
     }
 
@@ -568,8 +631,8 @@ export default function GroupDetails({ session, group, onBack }) {
                         </div>
                     )}
 
-                    {loading ? (
-                        <div className="loading">Loading...</div>
+                    {loading && isFirstLoad.current ? (
+                        <ExpensesSkeleton />
                     ) : filteredExpenses.length === 0 ? (
                         <div className="empty-state">
                             <p>No {expenseFilter} found.</p>
@@ -672,8 +735,8 @@ export default function GroupDetails({ session, group, onBack }) {
             {/* Balances Tab */}
             {activeTab === 'balances' && (
                 <div className="balances-view">
-                    {loading ? (
-                        <div className="loading">Loading balances...</div>
+                    {loading && isFirstLoad.current ? (
+                        <BalancesSkeleton />
                     ) : (
                         <>
                             {/* Total Expenses Card */}
@@ -738,8 +801,8 @@ export default function GroupDetails({ session, group, onBack }) {
                             <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Group Members</h3>
                             <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{members.length} members</span>
                         </div>
-                        {loading ? (
-                            <div className="loading">Loading members...</div>
+                        {loading && isFirstLoad.current ? (
+                            <MembersSkeleton />
                         ) : (
                             <div className="members-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                 {members.map((member) => (

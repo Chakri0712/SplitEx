@@ -2,428 +2,371 @@
 -- RESTORE SCHEMA SCRIPT
 -- This script will:
 -- 1. Drop all application tables (keeping auth.users intact)
--- 2. Re-create all tables, functions, and policies
+-- 2. Re-create all tables, functions, triggers, and policies
 -- 3. Restore user profiles from existing auth.users
+--
+-- ✅ Includes: fcm_tokens, notifications, all RPCs, all indexes
+-- ✅ Safe to run on a fresh Supabase project
 -- ============================================================================
 
 -- 1. CLEANUP (Drop tables in correct dependency order)
 DROP TABLE IF EXISTS settlement_details CASCADE;
-DROP TABLE IF EXISTS notifications CASCADE; -- Added cleanup
+DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS expense_splits CASCADE;
 DROP TABLE IF EXISTS expenses CASCADE;
 DROP TABLE IF EXISTS group_members CASCADE;
 DROP TABLE IF EXISTS groups CASCADE;
+DROP TABLE IF EXISTS fcm_tokens CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
 
 -- Drop Functions
 DROP FUNCTION IF EXISTS is_member_of CASCADE;
 DROP FUNCTION IF EXISTS handle_new_user CASCADE;
 DROP FUNCTION IF EXISTS join_group_by_code CASCADE;
+DROP FUNCTION IF EXISTS create_expense_rpc CASCADE;
+DROP FUNCTION IF EXISTS update_expense_rpc CASCADE;
+DROP FUNCTION IF EXISTS create_settlement_rpc CASCADE;
+DROP FUNCTION IF EXISTS update_settlement_rpc CASCADE;
+DROP FUNCTION IF EXISTS notify_single_expense CASCADE;
+DROP FUNCTION IF EXISTS notify_expense_deleted_trigger CASCADE;
+DROP FUNCTION IF EXISTS handle_settlement_updates CASCADE;
+DROP FUNCTION IF EXISTS cleanup_notifications CASCADE;
+DROP FUNCTION IF EXISTS send_push_to_user CASCADE;
+DROP FUNCTION IF EXISTS set_expense_split_group_id CASCADE;
 
 -- ============================================================================
--- 2. REBUILD SCHEMA (From master_schema.sql)
+-- 2. REBUILD SCHEMA
 -- ============================================================================
 
 -- Enable UUID extension
-create extension if not exists "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ============================================================================
+-- 2.1 TABLES (order matters — dependencies first)
+-- ============================================================================
 
 -- Profiles (Managed by Supabase Auth)
-create table if not exists profiles (
-  id uuid references auth.users on delete cascade not null primary key,
+CREATE TABLE IF NOT EXISTS profiles (
+  id uuid REFERENCES auth.users ON DELETE CASCADE NOT NULL PRIMARY KEY,
   email text,
   full_name text,
   avatar_url text,
   upi_id text,
-  country text default 'IND',
+  country text DEFAULT 'IND',
   updated_at timestamp with time zone,
   cleared_at timestamp with time zone
 );
 
 -- Groups
-create table if not exists groups (
-  id uuid default uuid_generate_v4() primary key,
-  name text not null,
-  created_by uuid references auth.users not null,
-  invite_code text unique,
-  currency text default 'USD',
-  category text default 'Personal',
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE TABLE IF NOT EXISTS groups (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name text NOT NULL,
+  created_by uuid REFERENCES auth.users NOT NULL,
+  invite_code text UNIQUE,
+  currency text DEFAULT 'USD',
+  category text DEFAULT 'Personal',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Group Members
-create table if not exists group_members (
-  group_id uuid references groups on delete cascade not null,
-  user_id uuid references profiles(id) on delete cascade not null,
-  joined_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  primary key (group_id, user_id)
+CREATE TABLE IF NOT EXISTS group_members (
+  group_id uuid REFERENCES groups ON DELETE CASCADE NOT NULL,
+  user_id uuid REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (group_id, user_id)
 );
 
 -- Expenses
-create table if not exists expenses (
-  id uuid default uuid_generate_v4() primary key,
-  group_id uuid references groups on delete cascade not null,
-  paid_by uuid references profiles(id) not null,
-  amount decimal(10,2) not null,
-  description text not null,
+CREATE TABLE IF NOT EXISTS expenses (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  group_id uuid REFERENCES groups ON DELETE CASCADE NOT NULL,
+  paid_by uuid REFERENCES profiles(id) NOT NULL,
+  amount decimal(10,2) NOT NULL,
+  description text NOT NULL,
   category text,
-  date timestamp with time zone default timezone('utc'::text, now()) not null,
-  created_by uuid references profiles(id), -- Nullable for backward compatibility, but good to have
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()),
-  updated_by uuid references profiles(id)
+  date timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  created_by uuid REFERENCES profiles(id),
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+  updated_by uuid REFERENCES profiles(id)
 );
+
+-- Expense Splits (group_id denormalized for fast RLS checks)
+CREATE TABLE IF NOT EXISTS expense_splits (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  expense_id uuid REFERENCES expenses ON DELETE CASCADE NOT NULL,
+  group_id uuid REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+  user_id uuid REFERENCES profiles(id) NOT NULL,
+  owe_amount decimal(10,2) NOT NULL
+);
+
+-- Settlement Details
+CREATE TABLE IF NOT EXISTS settlement_details (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  expense_id uuid REFERENCES expenses(id) ON DELETE CASCADE UNIQUE,
+  settlement_method text NOT NULL,
+  settlement_status text CHECK (settlement_status IN ('pending_utr', 'pending_confirmation', 'confirmed', 'disputed', 'cancelled')) NOT NULL,
+  utr_reference text,
+  cancellation_reason text,
+  initiated_by uuid REFERENCES profiles(id) NOT NULL,
+  initiated_at timestamp with time zone DEFAULT now(),
+  confirmed_by uuid REFERENCES profiles(id),
+  confirmed_at timestamp with time zone,
+  cross_group_batch_id uuid,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Notifications
+CREATE TABLE IF NOT EXISTS notifications (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id uuid REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  type text NOT NULL CHECK (type IN ('expense_created', 'expense_updated', 'expense_deleted', 'settlement_created', 'settlement_updated', 'settlement_deleted')),
+  title text NOT NULL,
+  message text NOT NULL,
+  data jsonb,
+  is_read boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- FCM Tokens (Push Notification Device Tokens)
+CREATE TABLE IF NOT EXISTS fcm_tokens (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users NOT NULL,
+  token text NOT NULL UNIQUE,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- ============================================================================
+-- 2.2 INDEXES (Performance — defined AFTER all tables)
+-- ============================================================================
+
+-- Groups
+CREATE INDEX IF NOT EXISTS idx_groups_category ON groups(category);
+
+-- Expenses — composite for the most common query (group feed ordered by date)
+CREATE INDEX IF NOT EXISTS idx_expenses_group_id ON expenses(group_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_group_date ON expenses(group_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_paid_by ON expenses(paid_by);
 
 -- Expense Splits
-create table if not exists expense_splits (
-  id uuid default uuid_generate_v4() primary key,
-  expense_id uuid references expenses on delete cascade not null,
-  group_id uuid references groups(id) on delete cascade not null,
-  user_id uuid references profiles(id) not null,
-  owe_amount decimal(10,2) not null
-);
-
--- ============================================================================
--- 2.5 INDEXES (Performance Optimizations)
--- ============================================================================
-CREATE INDEX IF NOT EXISTS idx_groups_category ON groups(category);
-CREATE INDEX IF NOT EXISTS idx_expenses_group_id ON expenses(group_id);
-CREATE INDEX IF NOT EXISTS idx_expenses_paid_by ON expenses(paid_by);
 CREATE INDEX IF NOT EXISTS idx_splits_expense_id ON expense_splits(expense_id);
 CREATE INDEX IF NOT EXISTS idx_splits_user_id ON expense_splits(user_id);
 CREATE INDEX IF NOT EXISTS idx_splits_group_id ON expense_splits(group_id);
-CREATE INDEX IF NOT EXISTS idx_settlements_expense_id ON settlement_details(expense_id);
-CREATE INDEX IF NOT EXISTS idx_settlements_initiated_by ON settlement_details(initiated_by);
-CREATE INDEX IF NOT EXISTS idx_group_members_group_user ON group_members(group_id, user_id);
 
 -- Settlement Details
-create table if not exists settlement_details (
-  id uuid primary key default uuid_generate_v4(),
-  expense_id uuid references expenses(id) on delete cascade unique,
-  settlement_method text not null,
-  settlement_status text check (settlement_status in ('pending_utr', 'pending_confirmation', 'confirmed', 'disputed', 'cancelled')) not null,
-  utr_reference text,
-  cancellation_reason text,
-  initiated_by uuid references profiles(id) not null,
-  initiated_at timestamp with time zone default now(),
-  confirmed_by uuid references profiles(id),
-  confirmed_at timestamp with time zone,
-  cross_group_batch_id uuid,
-  created_at timestamp with time zone default now()
-);
+CREATE INDEX IF NOT EXISTS idx_settlements_expense_id ON settlement_details(expense_id);
+CREATE INDEX IF NOT EXISTS idx_settlements_initiated_by ON settlement_details(initiated_by);
+CREATE INDEX IF NOT EXISTS idx_settlements_status ON settlement_details(settlement_status);
+CREATE INDEX IF NOT EXISTS idx_settlements_batch_id ON settlement_details(cross_group_batch_id) WHERE cross_group_batch_id IS NOT NULL;
 
--- 3. ENABLE RLS
-alter table profiles enable row level security;
-alter table groups enable row level security;
-alter table group_members enable row level security;
-alter table expenses enable row level security;
-alter table expense_splits enable row level security;
-alter table settlement_details enable row level security;
+-- Group Members (composite for RLS optimization)
+CREATE INDEX IF NOT EXISTS idx_group_members_group_user ON group_members(group_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members(user_id);
 
--- 4. SECURITY FUNCTIONS
-create or replace function is_member_of(_group_id uuid)
-returns boolean language plpgsql security definer
-as $$
-begin
-  return exists (select 1 from group_members where group_id = _group_id and user_id = auth.uid());
-end;
-$$;
-
--- 5. POLICIES
+-- Notifications (user feed sorted by time + unread filter)
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read) WHERE is_read = false;
 
 -- Profiles
-create policy "Public profiles" on profiles for select using (true);
-create policy "Users can update own profile" on profiles for update using (auth.uid() = id);
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
+
+-- FCM Tokens
+CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user_id ON fcm_tokens(user_id);
+
+-- ============================================================================
+-- 3. ENABLE RLS
+-- ============================================================================
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expense_splits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settlement_details ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fcm_tokens ENABLE ROW LEVEL SECURITY;
+
+-- Enable Realtime for notifications
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'notifications') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+  END IF;
+END $$;
+
+-- ============================================================================
+-- 4. SECURITY FUNCTIONS
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION is_member_of(_group_id uuid)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  RETURN EXISTS (SELECT 1 FROM group_members WHERE group_id = _group_id AND user_id = auth.uid());
+END;
+$$;
+
+-- ============================================================================
+-- 5. POLICIES
+-- ============================================================================
+
+-- Profiles
+CREATE POLICY "Public profiles" ON profiles FOR SELECT USING (true);
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Groups
-create policy "View joined groups" on groups for select using (
+CREATE POLICY "View joined groups" ON groups FOR SELECT USING (
   is_member_of(id) OR created_by = auth.uid()
 );
-create policy "Create groups" on groups for insert with check (
-  created_by = auth.uid()
-);
-create policy "Update groups" on groups for update using (
-  is_member_of(id)
-);
-create policy "Delete groups" on groups for delete using (
-  created_by = auth.uid()
-);
-create policy "Allow last member to delete group" on groups for delete using (
-  (select count(*) from group_members where group_id = id) = 1
-  and
-  (auth.uid() in (select user_id from group_members where group_id = id))
+CREATE POLICY "Create groups" ON groups FOR INSERT WITH CHECK (created_by = auth.uid());
+CREATE POLICY "Update groups" ON groups FOR UPDATE USING (is_member_of(id));
+CREATE POLICY "Delete groups" ON groups FOR DELETE USING (created_by = auth.uid());
+CREATE POLICY "Allow last member to delete group" ON groups FOR DELETE USING (
+  (SELECT COUNT(*) FROM group_members WHERE group_id = id) = 1
+  AND (auth.uid() IN (SELECT user_id FROM group_members WHERE group_id = id))
 );
 
 -- Members
-create policy "View members" on group_members for select using (
+CREATE POLICY "View members" ON group_members FOR SELECT USING (
   is_member_of(group_id) OR user_id = auth.uid()
 );
-create policy "Join group" on group_members for insert with check (
-  user_id = auth.uid()
-);
-create policy "Delete members" on group_members for delete using (
-  user_id = auth.uid()
-);
+CREATE POLICY "Join group" ON group_members FOR INSERT WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Delete members" ON group_members FOR DELETE USING (user_id = auth.uid());
 
 -- Expenses
-create policy "View expenses" on expenses for select using (
-  is_member_of(group_id)
-);
-create policy "Add expense" on expenses for insert with check (
-  is_member_of(group_id)
-);
-create policy "Update expenses" on expenses for update using (
-  is_member_of(group_id)
-);
-create policy "Delete expenses" on expenses for delete using (
-  is_member_of(group_id)
-);
+CREATE POLICY "View expenses" ON expenses FOR SELECT USING (is_member_of(group_id));
+CREATE POLICY "Add expense" ON expenses FOR INSERT WITH CHECK (is_member_of(group_id));
+CREATE POLICY "Update expenses" ON expenses FOR UPDATE USING (is_member_of(group_id));
+CREATE POLICY "Delete expenses" ON expenses FOR DELETE USING (is_member_of(group_id));
 
--- Splits
-create policy "View splits" on expense_splits for select using (is_member_of(group_id));
-create policy "Add splits" on expense_splits for insert with check (is_member_of(group_id));
-create policy "Update splits" on expense_splits for update using (is_member_of(group_id));
-create policy "Delete splits" on expense_splits for delete using (is_member_of(group_id));
+-- Splits (use denormalized group_id for fast policy evaluation)
+CREATE POLICY "View splits" ON expense_splits FOR SELECT USING (is_member_of(group_id));
+CREATE POLICY "Add splits" ON expense_splits FOR INSERT WITH CHECK (is_member_of(group_id));
+CREATE POLICY "Update splits" ON expense_splits FOR UPDATE USING (is_member_of(group_id));
+CREATE POLICY "Delete splits" ON expense_splits FOR DELETE USING (is_member_of(group_id));
 
 -- Settlement Details
-create policy "View settlement details" on settlement_details for select using (
-  expense_id in (
-    select e.id from expenses e
-    join group_members gm on e.group_id = gm.group_id
-    where gm.user_id = auth.uid()
+CREATE POLICY "View settlement details" ON settlement_details FOR SELECT USING (
+  expense_id IN (
+    SELECT e.id FROM expenses e
+    JOIN group_members gm ON e.group_id = gm.group_id
+    WHERE gm.user_id = auth.uid()
   )
 );
-create policy "Create settlement details" on settlement_details for insert with check (
+CREATE POLICY "Create settlement details" ON settlement_details FOR INSERT WITH CHECK (
   initiated_by = auth.uid()
 );
-create policy "Update settlement details" on settlement_details for update using (
-  initiated_by = auth.uid() or
-  expense_id in (
-    select e.id from expenses e
-    join expense_splits es on e.id = es.expense_id
-    where es.user_id = auth.uid()
+CREATE POLICY "Update settlement details" ON settlement_details FOR UPDATE USING (
+  initiated_by = auth.uid() OR
+  expense_id IN (
+    SELECT e.id FROM expenses e
+    JOIN expense_splits es ON e.id = es.expense_id
+    WHERE es.user_id = auth.uid()
   )
 );
 
--- 6. TRIGGERS
-create or replace function public.handle_new_user()
-returns trigger as $$
-begin
-  insert into public.profiles (id, email, full_name, avatar_url)
-  values (new.id, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url')
-  on conflict (id) do nothing;
-  return new;
-end;
-$$ language plpgsql security definer;
+-- Notifications
+CREATE POLICY "View own notifications" ON notifications FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Update own notifications" ON notifications FOR UPDATE USING (auth.uid() = user_id);
 
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+-- FCM Tokens
+CREATE POLICY "Users can view their own fcm tokens" ON fcm_tokens FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own fcm tokens" ON fcm_tokens FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own fcm tokens" ON fcm_tokens FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own fcm tokens" ON fcm_tokens FOR DELETE USING (auth.uid() = user_id);
 
--- 7. FUNCTIONS
-create or replace function join_group_by_code(invite_code_input text)
-returns json
-language plpgsql
-security definer
-as $$
-declare
+-- ============================================================================
+-- 6. TRIGGERS & HELPER FUNCTIONS
+-- ============================================================================
+
+-- Auto-create profile on signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, avatar_url)
+  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url')
+  ON CONFLICT (id) DO NOTHING;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- Auto-populate group_id on expense_splits if client omits it (backward compat)
+CREATE OR REPLACE FUNCTION set_expense_split_group_id()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.group_id IS NULL THEN
+    SELECT group_id INTO NEW.group_id FROM expenses WHERE id = NEW.expense_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS before_insert_expense_split ON expense_splits;
+CREATE TRIGGER before_insert_expense_split
+  BEFORE INSERT ON expense_splits
+  FOR EACH ROW EXECUTE FUNCTION set_expense_split_group_id();
+
+-- Notification cleanup (keep last 2 days per user)
+CREATE OR REPLACE FUNCTION public.cleanup_notifications()
+RETURNS trigger AS $$
+BEGIN
+  DELETE FROM notifications
+  WHERE user_id = new.user_id
+    AND created_at < now() - INTERVAL '2 days';
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_notification_created ON notifications;
+CREATE TRIGGER on_notification_created
+  AFTER INSERT ON notifications
+  FOR EACH ROW EXECUTE PROCEDURE public.cleanup_notifications();
+
+-- ============================================================================
+-- 7. RPC FUNCTIONS (Atomic, Security Definer)
+-- ============================================================================
+
+-- Join group by invite code
+CREATE OR REPLACE FUNCTION join_group_by_code(invite_code_input text)
+RETURNS json LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
   target_group_id uuid;
   target_group_name text;
   already_member boolean;
-begin
-  select id, name into target_group_id, target_group_name
-  from groups
-  where invite_code = invite_code_input;
+BEGIN
+  SELECT id, name INTO target_group_id, target_group_name
+  FROM groups WHERE invite_code = invite_code_input;
 
-  if target_group_id is null then
-    raise exception 'Invalid invite code';
-  end if;
+  IF target_group_id IS NULL THEN
+    RAISE EXCEPTION 'Invalid invite code';
+  END IF;
 
-  select exists (
-    select 1 from group_members
-    where group_id = target_group_id
-    and user_id = auth.uid()
-  ) into already_member;
+  SELECT EXISTS (
+    SELECT 1 FROM group_members
+    WHERE group_id = target_group_id AND user_id = auth.uid()
+  ) INTO already_member;
 
-  if already_member then
-    return json_build_object('id', target_group_id, 'name', target_group_name, 'already_joined', true);
-  end if;
+  IF already_member THEN
+    RETURN json_build_object('id', target_group_id, 'name', target_group_name, 'already_joined', true);
+  END IF;
 
-  insert into group_members (group_id, user_id)
-  values (target_group_id, auth.uid());
-
-  return json_build_object('id', target_group_id, 'name', target_group_name, 'already_joined', false);
-end;
+  INSERT INTO group_members (group_id, user_id) VALUES (target_group_id, auth.uid());
+  RETURN json_build_object('id', target_group_id, 'name', target_group_name, 'already_joined', false);
+END;
 $$;
 
--- 8. ATOMIC RPC FUNCTIONS (SECURITY DEFINER)
-create or replace function create_expense_rpc(
-    p_group_id uuid, p_paid_by uuid, p_amount numeric, p_description text, 
-    p_date timestamptz, p_created_by uuid, p_splits jsonb
-) returns uuid language plpgsql security definer as $$
-declare
-    new_expense_id uuid;
-    split_record jsonb;
-begin
-    if not exists (select 1 from group_members where group_id = p_group_id and user_id = auth.uid()) then
-        raise exception 'Not authorized to add expenses to this group';
-    end if;
-    insert into expenses (group_id, paid_by, amount, description, date, created_by)
-    values (p_group_id, p_paid_by, p_amount, p_description, p_date, p_created_by)
-    returning id into new_expense_id;
-
-    for split_record in select * from jsonb_array_elements(p_splits)
-    loop
-        insert into expense_splits (expense_id, group_id, user_id, owe_amount)
-        values (new_expense_id, p_group_id, (split_record->>'user_id')::uuid, (split_record->>'owe_amount')::numeric);
-    end loop;
-    perform public.notify_single_expense(new_expense_id, 'INSERT', p_created_by);
-    return new_expense_id;
-end;
-$$;
-
-create or replace function update_expense_rpc(
-    p_expense_id uuid, p_group_id uuid, p_paid_by uuid, p_amount numeric, 
-    p_description text, p_date timestamptz, p_updated_by uuid, p_splits jsonb
-) returns void language plpgsql security definer as $$
-declare
-    split_record jsonb;
-begin
-    if not exists (select 1 from group_members where group_id = p_group_id and user_id = auth.uid()) then
-        raise exception 'Not authorized to update expenses in this group';
-    end if;
-    if not exists (select 1 from expenses where id = p_expense_id and group_id = p_group_id) then
-        raise exception 'Expense not found or group mismatch';
-    end if;
-
-    update expenses set paid_by = p_paid_by, amount = p_amount, description = p_description, date = p_date, updated_by = p_updated_by, updated_at = now()
-    where id = p_expense_id;
-
-    delete from expense_splits where expense_id = p_expense_id;
-    for split_record in select * from jsonb_array_elements(p_splits)
-    loop
-        insert into expense_splits (expense_id, group_id, user_id, owe_amount)
-        values (p_expense_id, p_group_id, (split_record->>'user_id')::uuid, (split_record->>'owe_amount')::numeric);
-    end loop;
-    perform public.notify_single_expense(p_expense_id, 'UPDATE', p_updated_by);
-end;
-$$;
-
-create or replace function create_settlement_rpc(
-    p_group_id uuid, p_paid_by uuid, p_receiver_id uuid, p_amount numeric, 
-    p_description text, p_created_by uuid, p_settlement_method text, p_settlement_status text
-) returns uuid language plpgsql security definer as $$
-declare
-    new_expense_id uuid;
-begin
-    if not exists (select 1 from group_members where group_id = p_group_id and user_id = auth.uid()) then
-        raise exception 'Not authorized';
-    end if;
-    insert into expenses (group_id, paid_by, amount, description, category, created_by)
-    values (p_group_id, p_paid_by, p_amount, p_description, 'settlement', p_created_by)
-    returning id into new_expense_id;
-
-    insert into expense_splits (expense_id, group_id, user_id, owe_amount)
-    values (new_expense_id, p_group_id, p_receiver_id, p_amount);
-
-    insert into settlement_details (expense_id, settlement_method, settlement_status, initiated_by, confirmed_by, confirmed_at)
-    values (
-        new_expense_id, p_settlement_method, p_settlement_status, p_created_by,
-        case when p_settlement_status = 'confirmed' then p_created_by else null end,
-        case when p_settlement_status = 'confirmed' then now() else null end
-    );
-    perform public.notify_single_expense(new_expense_id, 'INSERT', p_created_by);
-    return new_expense_id;
-end;
-$$;
-
-create or replace function update_settlement_rpc(
-    p_expense_id uuid, p_group_id uuid, p_paid_by uuid, p_receiver_id uuid, 
-    p_amount numeric, p_description text, p_updated_by uuid
-) returns void language plpgsql security definer as $$
-begin
-    if not exists (select 1 from group_members where group_id = p_group_id and user_id = auth.uid()) then
-        raise exception 'Not authorized';
-    end if;
-    update expenses set paid_by = p_paid_by, amount = p_amount, description = p_description, updated_by = p_updated_by, updated_at = now()
-    where id = p_expense_id;
-
-    delete from expense_splits where expense_id = p_expense_id;
-    insert into expense_splits (expense_id, group_id, user_id, owe_amount)
-    values (p_expense_id, p_group_id, p_receiver_id, p_amount);
-end;
-$$;
-
-
--- ============================================================================
--- 3. RESTORE PROFILES (Sync from auth.users)
--- ============================================================================
-INSERT INTO profiles (id, email, full_name, avatar_url)
-SELECT 
-    id, 
-    email, 
-    raw_user_meta_data->>'full_name',
-    raw_user_meta_data->>'avatar_url'
-FROM auth.users
-ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    full_name = EXCLUDED.full_name,
-    avatar_url = EXCLUDED.avatar_url;
-
--- ============================================================================
--- 4. NOTIFICATIONS SYSTEM (Integrated)
--- ============================================================================
-
--- 4.1 Create Table
-create table if not exists notifications (
-  id uuid default uuid_generate_v4() primary key,
-  user_id uuid references profiles(id) on delete cascade not null,
-  type text not null check (type in ('expense_created', 'expense_updated', 'expense_deleted', 'settlement_created', 'settlement_updated', 'settlement_deleted')),
-  title text not null,
-  message text not null,
-  data jsonb,
-  is_read boolean default false,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- 4.2 Enable RLS & Realtime
-alter table notifications enable row level security;
-
--- Enable Realtime (This might fail if already added, so we wrap in a block or just run it)
-do $$
-begin
-  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'notifications') then
-    alter publication supabase_realtime add table notifications;
-  end if;
-end $$;
-
--- 4.3 Policies
-create policy "View own notifications" on notifications for select using (auth.uid() = user_id);
-create policy "Update own notifications" on notifications for update using (auth.uid() = user_id);
-
--- 4.4 Cleanup Trigger (7 Days Retention)
-create or replace function public.cleanup_notifications()
-returns trigger as $$
-begin
-  delete from notifications 
-  where user_id = new.user_id 
-  and created_at < now() - interval '2 days';
-  return new;
-end;
-$$ language plpgsql security definer;
-
-create trigger on_notification_created
-  after insert on notifications
-  for each row execute procedure public.cleanup_notifications();
-
--- 4.4.5 Push Helper
-create or replace function public.send_push_to_user(
+-- Push notification helper
+CREATE OR REPLACE FUNCTION public.send_push_to_user(
   p_user_id uuid,
   p_title   text,
   p_body    text
-) returns void language plpgsql security definer as $$
-begin
-  perform net.http_post(
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  PERFORM net.http_post(
     url     := 'https://ryjhfcfyglaabpowoxwk.supabase.co/functions/v1/send-push',
     headers := jsonb_build_object('Content-Type', 'application/json'),
     body    := jsonb_build_object(
@@ -432,16 +375,16 @@ begin
       'body',         p_body
     )
   );
-end;
+END;
 $$;
 
--- 4.5 Single Notification Function (Triggered by RPCs)
-create or replace function public.notify_single_expense(
+-- Notify members when an expense is created or updated
+CREATE OR REPLACE FUNCTION public.notify_single_expense(
   p_expense_id uuid,
   p_action text,
   p_actor_id uuid
-) returns void language plpgsql security definer as $$
-declare
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
   exp_rec record;
   group_name text;
   actor_name text;
@@ -451,59 +394,60 @@ declare
   notif_title text;
   notif_msg_inapp text;
   notif_msg_push text;
-begin
-  select * into exp_rec from expenses where id = p_expense_id;
-  if not found then return; end if;
+BEGIN
+  SELECT * INTO exp_rec FROM expenses WHERE id = p_expense_id;
+  IF NOT FOUND THEN RETURN; END IF;
 
-  select name into group_name from groups where id = exp_rec.group_id;
-  select split_part(full_name, ' ', 1) into actor_name from profiles where id = p_actor_id;
-  
-  is_sett_create := (exp_rec.category = 'settlement' and p_action = 'INSERT');
+  SELECT name INTO group_name FROM groups WHERE id = exp_rec.group_id;
+  SELECT split_part(full_name, ' ', 1) INTO actor_name FROM profiles WHERE id = p_actor_id;
 
-  if p_action = 'INSERT' then
-    if is_sett_create then
+  is_sett_create := (exp_rec.category = 'settlement' AND p_action = 'INSERT');
+
+  IF p_action = 'INSERT' THEN
+    IF is_sett_create THEN
        notif_type := 'settlement_created';
        notif_title := 'New Settlement Request';
        notif_msg_inapp := 'Settlement of ' || exp_rec.amount || ' proposed';
-       notif_msg_push := 'A settlement was created by ' || coalesce(actor_name, 'Someone') || ' in ' || coalesce(group_name, 'a group');
-    else
+       notif_msg_push := 'A settlement was created by ' || COALESCE(actor_name, 'Someone') || ' in ' || COALESCE(group_name, 'a group');
+    ELSE
        notif_type := 'expense_created';
        notif_title := 'Expense Added';
        notif_msg_inapp := 'Added: ' || exp_rec.description || ' (' || exp_rec.amount || ')';
-       notif_msg_push := '"' || exp_rec.description || '" of ' || exp_rec.amount || ' was added by ' || coalesce(actor_name, 'Someone') || ' in ' || coalesce(group_name, 'a group');
-    end if;
-  elsif p_action = 'UPDATE' and exp_rec.category != 'settlement' then
+       notif_msg_push := '"' || exp_rec.description || '" of ' || exp_rec.amount || ' was added by ' || COALESCE(actor_name, 'Someone') || ' in ' || COALESCE(group_name, 'a group');
+    END IF;
+  ELSIF p_action = 'UPDATE' AND exp_rec.category != 'settlement' THEN
     notif_type := 'expense_updated';
     notif_title := 'Expense Edited';
     notif_msg_inapp := 'Updated: ' || exp_rec.description;
-    notif_msg_push := '"' || exp_rec.description || '" of ' || exp_rec.amount || ' was edited by ' || coalesce(actor_name, 'Someone') || ' in ' || coalesce(group_name, 'a group');
-  else
-    return;
-  end if;
+    notif_msg_push := '"' || exp_rec.description || '" of ' || exp_rec.amount || ' was edited by ' || COALESCE(actor_name, 'Someone') || ' in ' || COALESCE(group_name, 'a group');
+  ELSE
+    RETURN;
+  END IF;
 
-  for target_user_id in 
-    select distinct user_id from (
-      select user_id from expense_splits where expense_id = p_expense_id
-      union
-      select exp_rec.paid_by
+  FOR target_user_id IN
+    SELECT DISTINCT user_id FROM (
+      SELECT user_id FROM expense_splits WHERE expense_id = p_expense_id
+      UNION
+      SELECT exp_rec.paid_by
     ) involved
-    where user_id != p_actor_id
-  loop
-    insert into notifications (user_id, type, title, message, data)
-    values (target_user_id, notif_type, notif_title, notif_msg_inapp, jsonb_build_object('group_id', exp_rec.group_id, 'expense_id', exp_rec.id));
-    
-    begin
-        execute format('select public.send_push_to_user(%L, %L, %L)', target_user_id, notif_title, notif_msg_push);
-    exception when undefined_function then
-    end;
-  end loop;
-end;
+    WHERE user_id != p_actor_id
+  LOOP
+    INSERT INTO notifications (user_id, type, title, message, data)
+    VALUES (target_user_id, notif_type, notif_title, notif_msg_inapp,
+            jsonb_build_object('group_id', exp_rec.group_id, 'expense_id', exp_rec.id));
+
+    BEGIN
+      EXECUTE format('SELECT public.send_push_to_user(%L, %L, %L)', target_user_id, notif_title, notif_msg_push);
+    EXCEPTION WHEN undefined_function THEN
+    END;
+  END LOOP;
+END;
 $$;
 
--- 4.6 Unified Expense Delete Trigger
-create or replace function public.notify_expense_deleted_trigger()
-returns trigger language plpgsql security definer as $$
-declare
+-- Expense delete notification trigger
+CREATE OR REPLACE FUNCTION public.notify_expense_deleted_trigger()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
   actor_id uuid;
   actor_name text;
   group_name text;
@@ -513,99 +457,220 @@ declare
   notif_title text;
   notif_msg_inapp text;
   notif_msg_push text;
-begin
-  actor_id := coalesce(auth.uid(), old.updated_by, old.paid_by);
-  select split_part(full_name, ' ', 1) into actor_name from profiles where id = actor_id;
-  select name into group_name from groups where id = old.group_id;
-  
+BEGIN
+  actor_id := COALESCE(auth.uid(), old.updated_by, old.paid_by);
+  SELECT split_part(full_name, ' ', 1) INTO actor_name FROM profiles WHERE id = actor_id;
+  SELECT name INTO group_name FROM groups WHERE id = old.group_id;
+
   is_settlement := (old.category = 'settlement');
 
-  if is_settlement then
+  IF is_settlement THEN
     notif_type := 'settlement_deleted';
     notif_title := 'Settlement Cancelled';
     notif_msg_inapp := 'Settlement of ' || old.amount || ' removed';
-    notif_msg_push := 'A settlement was cancelled by ' || coalesce(actor_name, 'Someone') || ' in ' || coalesce(group_name, 'a group');
-  else
+    notif_msg_push := 'A settlement was cancelled by ' || COALESCE(actor_name, 'Someone') || ' in ' || COALESCE(group_name, 'a group');
+  ELSE
     notif_type := 'expense_deleted';
     notif_title := 'Expense Deleted';
     notif_msg_inapp := 'Expense "' || old.description || '" removed';
-    notif_msg_push := '"' || old.description || '" was deleted by ' || coalesce(actor_name, 'Someone') || ' in ' || coalesce(group_name, 'a group');
-  end if;
+    notif_msg_push := '"' || old.description || '" was deleted by ' || COALESCE(actor_name, 'Someone') || ' in ' || COALESCE(group_name, 'a group');
+  END IF;
 
-  for target_user_id in 
-    select distinct user_id from (
-      select user_id from expense_splits where expense_id = old.id
-      union
-      select old.paid_by
+  FOR target_user_id IN
+    SELECT DISTINCT user_id FROM (
+      SELECT user_id FROM expense_splits WHERE expense_id = old.id
+      UNION
+      SELECT old.paid_by
     ) involved
-    where user_id != actor_id
-  loop
-    insert into notifications (user_id, type, title, message, data)
-    values (target_user_id, notif_type, notif_title, notif_msg_inapp, jsonb_build_object('group_id', old.group_id));
-    
-    begin
-       execute format('select public.send_push_to_user(%L, %L, %L)', target_user_id, notif_title, notif_msg_push);
-    exception when undefined_function then
-    end;
-  end loop;
+    WHERE user_id != actor_id
+  LOOP
+    INSERT INTO notifications (user_id, type, title, message, data)
+    VALUES (target_user_id, notif_type, notif_title, notif_msg_inapp,
+            jsonb_build_object('group_id', old.group_id));
 
-  return old;
-end;
+    BEGIN
+      EXECUTE format('SELECT public.send_push_to_user(%L, %L, %L)', target_user_id, notif_title, notif_msg_push);
+    EXCEPTION WHEN undefined_function THEN
+    END;
+  END LOOP;
+
+  RETURN old;
+END;
 $$;
 
-drop trigger if exists on_expense_delete_unified on expenses;
-create trigger on_expense_delete_unified
-  before delete on expenses
-  for each row execute procedure public.notify_expense_deleted_trigger();
+DROP TRIGGER IF EXISTS on_expense_delete_unified ON expenses;
+CREATE TRIGGER on_expense_delete_unified
+  BEFORE DELETE ON expenses
+  FOR EACH ROW EXECUTE PROCEDURE public.notify_expense_deleted_trigger();
 
-
--- 4.6 Settlement Status Trigger
-create or replace function public.handle_settlement_updates()
-returns trigger as $$
-declare
-  group_id uuid;
+-- Settlement status change notification trigger
+CREATE OR REPLACE FUNCTION public.handle_settlement_updates()
+RETURNS trigger AS $$
+DECLARE
+  grp_id uuid;
   group_name text;
   initiator_id uuid;
   payer_id uuid;
   actor_name text;
-begin
-  select e.group_id, e.created_by, e.paid_by into group_id, initiator_id, payer_id
-  from expenses e where e.id = new.expense_id;
-  select name into group_name from groups where id = group_id;
+BEGIN
+  SELECT e.group_id, e.created_by, e.paid_by INTO grp_id, initiator_id, payer_id
+  FROM expenses e WHERE e.id = new.expense_id;
+  SELECT name INTO group_name FROM groups WHERE id = grp_id;
 
-  if (new.settlement_status != old.settlement_status) then
-      -- Notify Initiator
-      insert into notifications (user_id, type, title, message, data)
-      values (
-        initiator_id, 'settlement_updated',
+  IF (new.settlement_status != old.settlement_status) THEN
+    -- Notify initiator
+    INSERT INTO notifications (user_id, type, title, message, data)
+    VALUES (
+      initiator_id, 'settlement_updated',
+      'Settlement ' || initcap(replace(new.settlement_status, '_', ' ')),
+      'Settlement in ' || group_name || ' is now ' || new.settlement_status,
+      jsonb_build_object('group_id', grp_id, 'expense_id', new.expense_id)
+    );
+
+    SELECT split_part(full_name, ' ', 1) INTO actor_name FROM profiles WHERE id = COALESCE(new.confirmed_by, payer_id);
+
+    BEGIN
+      EXECUTE format('SELECT public.send_push_to_user(%L, %L, %L)',
+        initiator_id,
         'Settlement ' || initcap(replace(new.settlement_status, '_', ' ')),
-        'Settlement in ' || group_name || ' is now ' || new.settlement_status,
-        jsonb_build_object('group_id', group_id, 'expense_id', new.expense_id)
+        'A settlement was ' || lower(replace(new.settlement_status, '_', ' ')) || ' by ' || COALESCE(actor_name, 'Someone') || ' in ' || group_name
       );
-      
-      select split_part(full_name, ' ', 1) into actor_name from profiles where id = coalesce(new.confirmed_by, payer_id);
-      
-      begin
-         execute format('select public.send_push_to_user(%L, %L, %L)', initiator_id, 'Settlement ' || initcap(replace(new.settlement_status, '_', ' ')), 'A settlement was ' || lower(replace(new.settlement_status, '_', ' ')) || ' by ' || coalesce(actor_name, 'Someone') || ' in ' || group_name);
-      exception when undefined_function then
-      end;
+    EXCEPTION WHEN undefined_function THEN
+    END;
 
-      -- Notify Payer if confirmed
-      if (payer_id != initiator_id AND new.settlement_status = 'confirmed') then
-        insert into notifications (user_id, type, title, message, data)
-        values (
-          payer_id, 'settlement_updated', 'Settlement Confirmed',
-          'Settlement in ' || group_name || ' is now confirmed',
-          jsonb_build_object('group_id', group_id, 'expense_id', new.expense_id)
-        );
-        -- In our schema, payer = the person who is owed. initiator = the person paying.
-        -- When confirmed, the initiator is notified above. The payer is notified here.
-      end if;
-  end if;
-  return new;
-end;
-$$ language plpgsql security definer;
+    -- Also notify payer if confirmed and different from initiator
+    IF (payer_id != initiator_id AND new.settlement_status = 'confirmed') THEN
+      INSERT INTO notifications (user_id, type, title, message, data)
+      VALUES (
+        payer_id, 'settlement_updated', 'Settlement Confirmed',
+        'Settlement in ' || group_name || ' is now confirmed',
+        jsonb_build_object('group_id', grp_id, 'expense_id', new.expense_id)
+      );
+    END IF;
+  END IF;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-create trigger on_settlement_update
-  after update on settlement_details
-  for each row execute procedure public.handle_settlement_updates();
+DROP TRIGGER IF EXISTS on_settlement_update ON settlement_details;
+CREATE TRIGGER on_settlement_update
+  AFTER UPDATE ON settlement_details
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_settlement_updates();
+
+-- create_expense_rpc
+CREATE OR REPLACE FUNCTION create_expense_rpc(
+    p_group_id uuid, p_paid_by uuid, p_amount numeric, p_description text,
+    p_date timestamptz, p_created_by uuid, p_splits jsonb
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    new_expense_id uuid;
+    split_record jsonb;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM group_members WHERE group_id = p_group_id AND user_id = auth.uid()) THEN
+        RAISE EXCEPTION 'Not authorized to add expenses to this group';
+    END IF;
+    INSERT INTO expenses (group_id, paid_by, amount, description, date, created_by)
+    VALUES (p_group_id, p_paid_by, p_amount, p_description, p_date, p_created_by)
+    RETURNING id INTO new_expense_id;
+
+    FOR split_record IN SELECT * FROM jsonb_array_elements(p_splits)
+    LOOP
+        INSERT INTO expense_splits (expense_id, group_id, user_id, owe_amount)
+        VALUES (new_expense_id, p_group_id, (split_record->>'user_id')::uuid, (split_record->>'owe_amount')::numeric);
+    END LOOP;
+    PERFORM public.notify_single_expense(new_expense_id, 'INSERT', p_created_by);
+    RETURN new_expense_id;
+END;
+$$;
+
+-- update_expense_rpc
+CREATE OR REPLACE FUNCTION update_expense_rpc(
+    p_expense_id uuid, p_group_id uuid, p_paid_by uuid, p_amount numeric,
+    p_description text, p_date timestamptz, p_updated_by uuid, p_splits jsonb
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    split_record jsonb;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM group_members WHERE group_id = p_group_id AND user_id = auth.uid()) THEN
+        RAISE EXCEPTION 'Not authorized to update expenses in this group';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM expenses WHERE id = p_expense_id AND group_id = p_group_id) THEN
+        RAISE EXCEPTION 'Expense not found or group mismatch';
+    END IF;
+
+    UPDATE expenses SET paid_by = p_paid_by, amount = p_amount, description = p_description,
+        date = p_date, updated_by = p_updated_by, updated_at = now()
+    WHERE id = p_expense_id;
+
+    DELETE FROM expense_splits WHERE expense_id = p_expense_id;
+    FOR split_record IN SELECT * FROM jsonb_array_elements(p_splits)
+    LOOP
+        INSERT INTO expense_splits (expense_id, group_id, user_id, owe_amount)
+        VALUES (p_expense_id, p_group_id, (split_record->>'user_id')::uuid, (split_record->>'owe_amount')::numeric);
+    END LOOP;
+    PERFORM public.notify_single_expense(p_expense_id, 'UPDATE', p_updated_by);
+END;
+$$;
+
+-- create_settlement_rpc
+CREATE OR REPLACE FUNCTION create_settlement_rpc(
+    p_group_id uuid, p_paid_by uuid, p_receiver_id uuid, p_amount numeric,
+    p_description text, p_created_by uuid, p_settlement_method text, p_settlement_status text
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    new_expense_id uuid;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM group_members WHERE group_id = p_group_id AND user_id = auth.uid()) THEN
+        RAISE EXCEPTION 'Not authorized';
+    END IF;
+    INSERT INTO expenses (group_id, paid_by, amount, description, category, created_by)
+    VALUES (p_group_id, p_paid_by, p_amount, p_description, 'settlement', p_created_by)
+    RETURNING id INTO new_expense_id;
+
+    INSERT INTO expense_splits (expense_id, group_id, user_id, owe_amount)
+    VALUES (new_expense_id, p_group_id, p_receiver_id, p_amount);
+
+    INSERT INTO settlement_details (expense_id, settlement_method, settlement_status, initiated_by, confirmed_by, confirmed_at)
+    VALUES (
+        new_expense_id, p_settlement_method, p_settlement_status, p_created_by,
+        CASE WHEN p_settlement_status = 'confirmed' THEN p_created_by ELSE NULL END,
+        CASE WHEN p_settlement_status = 'confirmed' THEN now() ELSE NULL END
+    );
+    PERFORM public.notify_single_expense(new_expense_id, 'INSERT', p_created_by);
+    RETURN new_expense_id;
+END;
+$$;
+
+-- update_settlement_rpc
+CREATE OR REPLACE FUNCTION update_settlement_rpc(
+    p_expense_id uuid, p_group_id uuid, p_paid_by uuid, p_receiver_id uuid,
+    p_amount numeric, p_description text, p_updated_by uuid
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM group_members WHERE group_id = p_group_id AND user_id = auth.uid()) THEN
+        RAISE EXCEPTION 'Not authorized';
+    END IF;
+    UPDATE expenses SET paid_by = p_paid_by, amount = p_amount, description = p_description,
+        updated_by = p_updated_by, updated_at = now()
+    WHERE id = p_expense_id;
+
+    DELETE FROM expense_splits WHERE expense_id = p_expense_id;
+    INSERT INTO expense_splits (expense_id, group_id, user_id, owe_amount)
+    VALUES (p_expense_id, p_group_id, p_receiver_id, p_amount);
+END;
+$$;
+
+-- ============================================================================
+-- 8. RESTORE PROFILES (Sync from auth.users)
+-- ============================================================================
+INSERT INTO profiles (id, email, full_name, avatar_url)
+SELECT
+    id,
+    email,
+    raw_user_meta_data->>'full_name',
+    raw_user_meta_data->>'avatar_url'
+FROM auth.users
+ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = EXCLUDED.full_name,
+    avatar_url = EXCLUDED.avatar_url;

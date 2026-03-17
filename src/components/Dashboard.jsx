@@ -15,6 +15,24 @@ const CATEGORY_FILTERS = [
     'Personal'
 ]
 
+function GroupsSkeleton() {
+    return (
+        <div className="groups-list">
+            {[1, 2, 3].map(i => (
+                <div key={i} className="group-list-item" style={{ pointerEvents: 'none' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                        <div style={{ flex: 1, paddingRight: '12px' }}>
+                            <div className="skeleton skeleton-text" style={{ width: '55%', marginBottom: '10px' }} />
+                            <div className="skeleton skeleton-text-sm" style={{ width: '30%' }} />
+                        </div>
+                        <div className="skeleton" style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0 }} />
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
 export default function Dashboard({ session, onGroupSelect }) {
     const navigate = useNavigate()
     const location = useLocation()
@@ -117,7 +135,7 @@ export default function Dashboard({ session, onGroupSelect }) {
             </header>
 
             {loading ? (
-                <div className="loading-state">Loading groups...</div>
+                <GroupsSkeleton />
             ) : (
                 <div className="groups-list">
                     {filteredGroups.length === 0 && (
