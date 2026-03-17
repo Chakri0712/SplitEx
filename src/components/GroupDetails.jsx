@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../supabaseClient'
 import { getCurrencySymbol } from '../utils/currency'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info, HandCoins, ArrowRight, UserPlus, Users, Check, Copy } from 'lucide-react'
+import { ArrowLeft, Plus, Receipt, Settings, Banknote, Trash2, Pencil, Info, HandCoins, ArrowRight, UserPlus, Users, Check, Copy, X } from 'lucide-react'
 import FilterSelect from './FilterSelect'
 import AddExpenseModal from './AddExpenseModal'
 import SettleUpModal from './SettleUpModal'
@@ -99,6 +99,7 @@ export default function GroupDetails({ session, group, onBack }) {
     const [settlementStatusFilter, setSettlementStatusFilter] = useState('all') // 'all' | 'confirmed' | 'pending' | 'cancelled'
     const [selectedExpenseForDetails, setSelectedExpenseForDetails] = useState(null)
     const [copied, setCopied] = useState(false)
+    const [showInviteModal, setShowInviteModal] = useState(false)
 
     const updateExpenseFilter = (filter) => {
         setExpenseFilter(filter)
@@ -111,6 +112,10 @@ export default function GroupDetails({ session, group, onBack }) {
     const [debts, setDebts] = useState({}) // { [payerId]: { [receiverId]: amount } }
     const [initialSettlementData, setInitialSettlementData] = useState(null)
     const [selectedSettlement, setSelectedSettlement] = useState(null)
+
+    // Pagination State for visible items
+    const [visibleCount, setVisibleCount] = useState(20)
+    const listRef = useRef(null)
 
     useEffect(() => {
         fetchData()
@@ -429,6 +434,23 @@ export default function GroupDetails({ session, group, onBack }) {
         })
     }, [expenses, expenseFilter, settlementsFilterMode, settlementStatusFilter])
 
+    // Reset pagination when filters change
+    useEffect(() => {
+        setVisibleCount(20)
+        // Reset scroll position
+        if (listRef.current) {
+            listRef.current.scrollTop = 0
+        }
+    }, [expenseFilter, settlementsFilterMode, settlementStatusFilter, activeTab])
+
+    const handleScroll = useCallback((e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target
+        // If we are within 100px of the bottom, load more
+        if (scrollHeight - scrollTop <= clientHeight + 100) {
+            setVisibleCount(prev => Math.min(prev + 20, filteredExpenses.length))
+        }
+    }, [filteredExpenses.length])
+
     const myDebtsDisplay = useMemo(() => {
         if (expenseFilter !== 'settlements') return null;
 
@@ -479,13 +501,36 @@ export default function GroupDetails({ session, group, onBack }) {
         if (!hasDebts) {
             return (
                 <div className="empty-debts">
-                    <p>✨ You are all settled up! No pending debts.</p>
+                    <p>✨ You are all settled up!</p>
                 </div>
             )
         }
 
         return cards
     }, [debts, members, session.user.id, expenseFilter, currentGroup.currency])
+
+    const handleCopyInviteCode = useCallback(() => {
+        const textArea = document.createElement("textarea")
+        textArea.value = currentGroup.invite_code
+        textArea.style.top = "0"
+        textArea.style.left = "0"
+        textArea.style.position = "fixed"
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        const successful = document.execCommand('copy')
+        document.body.removeChild(textArea)
+
+        if (successful) {
+            setCopied(true)
+            setTimeout(() => {
+                setCopied(false)
+                setShowInviteModal(false)
+            }, 1500)
+        } else {
+            alert(`Failed to copy. Your invite code is: ${currentGroup.invite_code}`)
+        }
+    }, [currentGroup.invite_code])
 
     return (
         <div className="details-container">
@@ -495,49 +540,24 @@ export default function GroupDetails({ session, group, onBack }) {
                 </button>
                 <div className="header-info">
                     <h1>{currentGroup.name}</h1>
-                    <span className="currency-tag">{currentGroup.currency}</span>
                 </div>
-                <button
-                    className="settings-btn"
-                    title="Group Settings"
-                    onClick={() => setIsSettingsModalOpen(true)}
-                >
-                    <Settings size={24} />
-                </button>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                        className="settings-btn"
+                        title="Invite Members"
+                        onClick={() => setShowInviteModal(true)}
+                    >
+                        <UserPlus size={22} />
+                    </button>
+                    <button
+                        className="settings-btn"
+                        title="Group Settings"
+                        onClick={() => setIsSettingsModalOpen(true)}
+                    >
+                        <Settings size={22} />
+                    </button>
+                </div>
             </header>
-
-            {/* Invite Code Row */}
-            <div className="invite-row-compact">
-                <span className="invite-label">Invite Code:</span>
-                <div className="code-display-compact">
-                    {currentGroup.invite_code}
-                </div>
-                <button
-                    onClick={() => {
-                        const textArea = document.createElement("textarea")
-                        textArea.value = currentGroup.invite_code
-                        textArea.style.top = "0"
-                        textArea.style.left = "0"
-                        textArea.style.position = "fixed"
-                        document.body.appendChild(textArea)
-                        textArea.focus()
-                        textArea.select()
-                        const successful = document.execCommand('copy')
-                        document.body.removeChild(textArea)
-
-                        if (successful) {
-                            setCopied(true)
-                            setTimeout(() => setCopied(false), 2000)
-                        } else {
-                            alert(`Failed to copy. Your invite code is: ${currentGroup.invite_code}`)
-                        }
-                    }}
-                    className={`copy-btn-compact ${copied ? 'copied' : ''}`}
-                    title="Copy Code"
-                >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                </button>
-            </div>
 
             {/* Tab Navigation */}
             <div className="tab-navigation">
@@ -564,275 +584,291 @@ export default function GroupDetails({ session, group, onBack }) {
                 </button>
             </div>
 
-            {/* Expenses Tab */}
-            {activeTab === 'expenses' && (
-                <div className="expenses-section">
-                    <div className="section-header">
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <FilterSelect
-                                label="View"
-                                value={expenseFilter}
-                                onChange={(e) => updateExpenseFilter(e.target.value)}
-                                options={[
-                                    { value: 'expenses', label: 'Expenses' },
-                                    { value: 'settlements', label: 'Settlements' }
-                                ]}
-                            />
-                            {expenseFilter === 'settlements' && (
-                                <>
-                                    <FilterSelect
-                                        label="Who"
-                                        value={settlementsFilterMode}
-                                        onChange={(e) => setSettlementsFilterMode(e.target.value)}
-                                        options={[
-                                            { value: 'all', label: 'All' },
-                                            { value: 'my', label: 'Mine' },
-                                            { value: 'others', label: 'Others' }
-                                        ]}
-                                    />
-                                    <FilterSelect
-                                        label="Status"
-                                        value={settlementStatusFilter}
-                                        onChange={(e) => setSettlementStatusFilter(e.target.value)}
-                                        options={[
-                                            { value: 'all', label: 'All' },
-                                            { value: 'confirmed', label: 'Confirmed' },
-                                            { value: 'pending', label: 'Pending' },
-                                            { value: 'cancelled', label: 'Cancelled' }
-                                        ]}
-                                    />
-                                </>
-                            )}
-                        </div>
-
-                        {expenseFilter === 'expenses' && (
-                            <button
-                                className="add-expense-btn"
-                                onClick={() => setIsExpenseModalOpen(true)}
-                            >
-                                <Plus size={20} /> Add Expense
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Show Debts Summary when filtering by Settlements */}
-                    {expenseFilter === 'settlements' && (
-                        <div className="debts-section-preview">
-                            {Object.keys(debts).length === 0 ? (
-                                <div className="empty-debts">
-                                    <p>✨ You are all settled up! No pending debts.</p>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* 1. Debts involving YOU */}
-                                    {myDebtsDisplay}
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {loading && isFirstLoad.current ? (
-                        <ExpensesSkeleton />
-                    ) : filteredExpenses.length === 0 ? (
-                        <div className="empty-state">
-                            <p>No {expenseFilter} found.</p>
-                            {expenseFilter === 'expenses' && (
-                                <p className="sub-text">Tap "+ Add Expense" to get started.</p>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="expenses-list">
-                            {filteredExpenses.map((expense) => (
-                                <div key={expense.id} className={`expense-item ${expense.category === 'settlement' ? 'settlement-item' : ''}`}>
-                                    <div className="expense-date">
-                                        <span className="month">
-                                            {new Date(expense.date).toLocaleDateString('en-US', { month: 'short' })}
-                                        </span>
-                                        <span className="day">
-                                            {new Date(expense.date).getDate()}
-                                        </span>
-                                    </div>
-                                    <div className="expense-icon">
-                                        {expense.category === 'settlement' ? <Banknote size={24} /> : <Receipt size={24} />}
-                                    </div>
-                                    <div className="expense-info">
-                                        <h4>
-                                            {expense.category === 'settlement' ? (() => {
-                                                const receiver = members.find(m => m.id === expense.receiver_id)
-                                                const receiverName = receiver ? receiver.name.split(' ')[0] : 'Unknown'
-                                                return `Settlement to ${receiverName}`
-                                            })() : expense.description}
-                                        </h4>
-                                        <p>
-                                            {expense.category !== 'settlement' && expense.updated_by_profile && expense.updated_at && Math.abs(new Date(expense.updated_at).getTime() - new Date(expense.created_at || expense.date).getTime()) > 5000 && (
-                                                <span style={{
-                                                    fontSize: '0.85em',
-                                                    fontWeight: '600',
-                                                    display: 'block',
-                                                    marginBottom: '2px',
-                                                    color: '#ef4444'
-                                                }}>
-                                                    Edited {expense.updated_by_profile ? `by ${expense.updated_by_profile.full_name.split(' ')[0]}` : ''}
-                                                </span>
-                                            )}
-                                            {expense.category === 'settlement' ? (
-                                                /* Status Display instead of Notes */
-                                                <span style={{
-                                                    fontSize: '0.85em',
-                                                    fontWeight: '600',
-                                                    display: 'block',
-                                                    marginBottom: '2px',
-                                                    color: expense.settlement_status === 'confirmed' ? '#10b981' :
-                                                        expense.settlement_status === 'cancelled' ? '#ef4444' :
-                                                            '#f59e0b'
-                                                }}>
-                                                    {expense.settlement_status === 'confirmed' ? 'Confirmed' :
-                                                        expense.settlement_status === 'cancelled' ? 'Cancelled' :
-                                                            expense.settlement_status === 'pending_confirmation' ? 'Pending Confirmation' :
-                                                                'Pending UTR'}
-                                                </span>
-                                            ) : null}
-
-                                            <span style={{ color: 'var(--text-secondary)' }}>
-                                                {expense.paid_by === session.user.id
-                                                    ? 'You'
-                                                    : expense.paid_by_profile?.full_name?.split(' ')[0] || 'Unknown'} paid
-                                            </span>
-                                        </p>
-                                    </div>
-                                    <div className="expense-amount">
-                                        <span className={`amount ${expense.category === 'settlement' ? '' : (expense.paid_by === session.user.id ? 'positive' : 'negative')}`}>
-                                            {getCurrencySymbol(currentGroup.currency)}
-                                            {expense.amount}
-                                        </span>
-                                    </div>
-                                    <div className="expense-actions">
-                                        {expense.category === 'settlement' ? (
-                                            <button
-                                                className="action-btn info"
-                                                onClick={() => setSelectedSettlement(expense)}
-                                                title="View Details"
-                                            >
-                                                <Info size={18} />
-                                            </button>
-                                        ) : (
-                                            <button
-                                                className="action-btn info"
-                                                onClick={() => setSelectedExpenseForDetails(expense)}
-                                                title="View Details"
-                                            >
-                                                <Info size={18} />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Balances Tab */}
-            {activeTab === 'balances' && (
-                <div className="balances-view">
-                    {loading && isFirstLoad.current ? (
-                        <BalancesSkeleton />
-                    ) : (
-                        <>
-                            {/* Total Expenses Card */}
-                            <div className="total-card">
-                                <h3>Total Group Expenses</h3>
-                                <div className="total-amount">
-                                    {getCurrencySymbol(currentGroup.currency)}
-                                    {expenses
-                                        .filter(exp => exp.category !== 'settlement')
-                                        .reduce((sum, exp) => sum + parseFloat(exp.amount), 0).toFixed(2)}
-                                </div>
+            {/* List Card Container */}
+            <div className="list-card-container">
+                {/* Expenses Tab */}
+                {activeTab === 'expenses' && (
+                    <div className="expenses-section">
+                        <div className="section-header" style={{ paddingBottom: expenseFilter === 'settlements' ? '4px' : '12px' }}>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <FilterSelect
+                                    label="View"
+                                    value={expenseFilter}
+                                    onChange={(e) => updateExpenseFilter(e.target.value)}
+                                    options={[
+                                        { value: 'expenses', label: 'Expenses' },
+                                        { value: 'settlements', label: 'Settlements' }
+                                    ]}
+                                />
+                                {expenseFilter === 'settlements' && (
+                                    <>
+                                        <FilterSelect
+                                            label="Who"
+                                            value={settlementsFilterMode}
+                                            onChange={(e) => setSettlementsFilterMode(e.target.value)}
+                                            options={[
+                                                { value: 'all', label: 'All' },
+                                                { value: 'my', label: 'Mine' },
+                                                { value: 'others', label: 'Others' }
+                                            ]}
+                                        />
+                                        <FilterSelect
+                                            label="Status"
+                                            value={settlementStatusFilter}
+                                            onChange={(e) => setSettlementStatusFilter(e.target.value)}
+                                            options={[
+                                                { value: 'all', label: 'All' },
+                                                { value: 'confirmed', label: 'Confirmed' },
+                                                { value: 'pending', label: 'Pending' },
+                                                { value: 'cancelled', label: 'Cancelled' }
+                                            ]}
+                                        />
+                                    </>
+                                )}
                             </div>
 
-                            {/* Member Spending List */}
-                            {memberSpending.length > 0 && expenses.length > 0 && (
-                                <div className="member-spending-list">
-                                    <h3>Members share</h3>
-                                    {memberSpending.map((member, index) => {
-                                        const colors = [
-                                            'var(--primary)',
-                                            'var(--primary-hover)',
-                                            '#d4a574',
-                                            '#b8935e',
-                                            '#9c8048',
-                                            '#806d32'
-                                        ]
-                                        return (
-                                            <div key={member.id} className="member-spending-item">
-                                                <div className="member-color" style={{ backgroundColor: colors[index % colors.length] }}></div>
-                                                <div className="member-info">
-                                                    <span className="member-name">
-                                                        {member.id === session.user.id ? 'You' : member.name}
-                                                    </span>
-                                                    <span className="member-percentage">{member.percentage.toFixed(1)}%</span>
-                                                </div>
-                                                <div className="member-amount">
-                                                    {getCurrencySymbol(currentGroup.currency)}
-                                                    {member.spent.toFixed(2)}
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
+                            {expenseFilter === 'expenses' && (
+                                <button
+                                    className="add-expense-btn"
+                                    onClick={() => setIsExpenseModalOpen(true)}
+                                >
+                                    <Plus size={20} /> Add Expense
+                                </button>
                             )}
-
-                            {expenses.length === 0 && (
-                                <div className="empty-state">
-                                    <p>No expenses yet.</p>
-                                    <p className="sub-text">Add expenses to see spending breakdown.</p>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-            )}
-
-            {/* Members Tab */}
-            {activeTab === 'members' && (
-                <div className="members-view">
-                    <div className="members-list-container" style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '16px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Group Members</h3>
-                            <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{members.length} members</span>
                         </div>
+
+                        {/* Show Debts Summary when filtering by Settlements */}
+                        {expenseFilter === 'settlements' && (
+                            <div className="debts-section-preview">
+                                {Object.keys(debts).length === 0 ? (
+                                    <div className="empty-debts">
+                                        <p>✨ You are all settled up!</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* 1. Debts involving YOU */}
+                                        {myDebtsDisplay}
+                                    </>
+                                )}
+                            </div>
+                        )}
+
                         {loading && isFirstLoad.current ? (
-                            <MembersSkeleton />
+                            <ExpensesSkeleton />
+                        ) : filteredExpenses.length === 0 ? (
+                            <div className="empty-state">
+                                <p>No {expenseFilter} found.</p>
+                                {expenseFilter === 'expenses' && (
+                                    <p className="sub-text">Tap "+ Add Expense" to get started.</p>
+                                )}
+                            </div>
                         ) : (
-                            <div className="members-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                {members.map((member) => (
-                                    <div key={member.id} className="member-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg-input)', borderRadius: '8px' }}>
-                                        <div className="member-avatar" style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 'bold' }}>
-                                            {member.name.charAt(0).toUpperCase()}
+                            <div
+                                className="expenses-list scrollable-feed"
+                                ref={listRef}
+                                onScroll={handleScroll}
+                            >
+                                {filteredExpenses.slice(0, visibleCount).map((expense) => (
+                                    <div key={expense.id} className={`expense-item ${expense.category === 'settlement' ? 'settlement-item' : ''}`}>
+                                        <div className="expense-date">
+                                            <span className="month">
+                                                {new Date(expense.date).toLocaleDateString('en-US', { month: 'short' })}
+                                            </span>
+                                            <span className="day">
+                                                {new Date(expense.date).getDate()}
+                                            </span>
                                         </div>
-                                        <div className="member-info" style={{ flex: 1 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <span className="member-name" style={{ fontWeight: '500', color: 'var(--text-primary)' }}>
-                                                    {member.name}
+                                        <div className="expense-icon">
+                                            {expense.category === 'settlement' ? <Banknote size={24} /> : <Receipt size={24} />}
+                                        </div>
+                                        <div className="expense-info">
+                                            <h4>
+                                                {expense.category === 'settlement' ? (() => {
+                                                    const receiver = members.find(m => m.id === expense.receiver_id)
+                                                    const receiverName = receiver ? receiver.name.split(' ')[0] : 'Unknown'
+                                                    return `Settlement to ${receiverName}`
+                                                })() : expense.description}
+                                            </h4>
+                                            <p>
+                                                {expense.category !== 'settlement' && expense.updated_by_profile && expense.updated_at && Math.abs(new Date(expense.updated_at).getTime() - new Date(expense.created_at || expense.date).getTime()) > 5000 && (
+                                                    <span style={{
+                                                        fontSize: '0.85em',
+                                                        fontWeight: '600',
+                                                        display: 'block',
+                                                        marginBottom: '2px',
+                                                        color: '#ef4444'
+                                                    }}>
+                                                        Edited {expense.updated_by_profile ? `by ${expense.updated_by_profile.full_name.split(' ')[0]}` : ''}
+                                                    </span>
+                                                )}
+                                                {expense.category === 'settlement' ? (
+                                                    /* Status Display instead of Notes */
+                                                    <span style={{
+                                                        fontSize: '0.85em',
+                                                        fontWeight: '600',
+                                                        display: 'block',
+                                                        marginBottom: '2px',
+                                                        color: expense.settlement_status === 'confirmed' ? '#10b981' :
+                                                            expense.settlement_status === 'cancelled' ? '#ef4444' :
+                                                                '#f59e0b'
+                                                    }}>
+                                                        {expense.settlement_status === 'confirmed' ? 'Confirmed' :
+                                                            expense.settlement_status === 'cancelled' ? 'Cancelled' :
+                                                                expense.settlement_status === 'pending_confirmation' ? 'Pending Confirmation' :
+                                                                    'Pending UTR'}
+                                                    </span>
+                                                ) : null}
+
+                                                <span style={{ color: 'var(--text-secondary)' }}>
+                                                    {expense.paid_by === session.user.id
+                                                        ? 'You'
+                                                        : expense.paid_by_profile?.full_name?.split(' ')[0] || 'Unknown'} paid
                                                 </span>
-                                                {member.id === session.user.id && (
-                                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '2px 6px', borderRadius: '4px' }}>You</span>
-                                                )}
-                                                {currentGroup.created_by === member.id && (
-                                                    <span style={{ fontSize: '0.7rem', color: 'var(--primary)', background: 'rgba(234, 179, 8, 0.15)', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>Admin</span>
-                                                )}
-                                            </div>
-                                            {!member.isCurrent && (
-                                                <div style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '2px' }}>Left Group</div>
+                                            </p>
+                                        </div>
+                                        <div className="expense-amount">
+                                            <span className={`amount ${expense.category === 'settlement' ? '' : (expense.paid_by === session.user.id ? 'positive' : 'negative')}`}>
+                                                {getCurrencySymbol(currentGroup.currency)}
+                                                {expense.amount}
+                                            </span>
+                                        </div>
+                                        <div className="expense-actions">
+                                            {expense.category === 'settlement' ? (
+                                                <button
+                                                    className="action-btn info"
+                                                    onClick={() => setSelectedSettlement(expense)}
+                                                    title="View Details"
+                                                >
+                                                    <Info size={18} />
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    className="action-btn info"
+                                                    onClick={() => setSelectedExpenseForDetails(expense)}
+                                                    title="View Details"
+                                                >
+                                                    <Info size={18} />
+                                                </button>
                                             )}
                                         </div>
                                     </div>
                                 ))}
+
+                                {visibleCount < filteredExpenses.length && (
+                                    <div className="load-more-indicator">
+                                        <span className="loading-dots">
+                                            Loading more...
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
-                </div>
-            )}
+                )}
+
+                {/* Balances Tab */}
+                {activeTab === 'balances' && (
+                    <div className="balances-view">
+                        {loading && isFirstLoad.current ? (
+                            <BalancesSkeleton />
+                        ) : (
+                            <>
+                                {/* Total Expenses Card */}
+                                <div className="total-card">
+                                    <h3>Total Group Expenses</h3>
+                                    <div className="total-amount">
+                                        {getCurrencySymbol(currentGroup.currency)}
+                                        {expenses
+                                            .filter(exp => exp.category !== 'settlement')
+                                            .reduce((sum, exp) => sum + parseFloat(exp.amount), 0).toFixed(2)}
+                                    </div>
+                                </div>
+
+                                {/* Member Spending List */}
+                                {memberSpending.length > 0 && expenses.length > 0 && (
+                                    <div className="member-spending-list">
+                                        <h3>Members share</h3>
+                                        {memberSpending.map((member, index) => {
+                                            const colors = [
+                                                'var(--primary)',
+                                                'var(--primary-hover)',
+                                                '#d4a574',
+                                                '#b8935e',
+                                                '#9c8048',
+                                                '#806d32'
+                                            ]
+                                            return (
+                                                <div key={member.id} className="member-spending-item">
+                                                    <div className="member-color" style={{ backgroundColor: colors[index % colors.length] }}></div>
+                                                    <div className="member-info">
+                                                        <span className="member-name">
+                                                            {member.id === session.user.id ? 'You' : member.name}
+                                                        </span>
+                                                        <span className="member-percentage">{member.percentage.toFixed(1)}%</span>
+                                                    </div>
+                                                    <div className="member-amount">
+                                                        {getCurrencySymbol(currentGroup.currency)}
+                                                        {member.spent.toFixed(2)}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+
+                                {expenses.length === 0 && (
+                                    <div className="empty-state">
+                                        <p>No expenses yet.</p>
+                                        <p className="sub-text">Add expenses to see spending breakdown.</p>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Members Tab */}
+                {activeTab === 'members' && (
+                    <div className="members-view">
+                        <div className="members-list-container" style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Group Members</h3>
+                                <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{members.length} members</span>
+                            </div>
+                            {loading && isFirstLoad.current ? (
+                                <MembersSkeleton />
+                            ) : (
+                                <div className="members-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    {members.map((member) => (
+                                        <div key={member.id} className="member-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg-input)', borderRadius: '8px' }}>
+                                            <div className="member-avatar" style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                                                {member.name.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="member-info" style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span className="member-name" style={{ fontWeight: '500', color: 'var(--text-primary)' }}>
+                                                        {member.name}
+                                                    </span>
+                                                    {member.id === session.user.id && (
+                                                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '2px 6px', borderRadius: '4px' }}>You</span>
+                                                    )}
+                                                    {currentGroup.created_by === member.id && (
+                                                        <span style={{ fontSize: '0.7rem', color: 'var(--primary)', background: 'rgba(234, 179, 8, 0.15)', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>Admin</span>
+                                                    )}
+                                                </div>
+                                                {!member.isCurrent && (
+                                                    <div style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '2px' }}>Left Group</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+            </div> {/* End list-card-container */}
 
             {isExpenseModalOpen && (
                 <AddExpenseModal
@@ -878,6 +914,38 @@ export default function GroupDetails({ session, group, onBack }) {
                     onClose={() => setSelectedSettlement(null)}
                     onUpdate={handleDataChanged}
                 />
+            )}
+
+            {showInviteModal && (
+                <div className="modal-overlay" onClick={() => setShowInviteModal(false)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '320px', textAlign: 'center' }}>
+                        <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                            <h2>Invite Code</h2>
+                            <button className="close-btn" onClick={() => setShowInviteModal(false)}>
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="modal-body" style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+                                Share this code with friends to let them join {currentGroup.name}.
+                            </p>
+                            <div className="code-display-compact" style={{ color: 'var(--primary)', fontWeight: 'bold', fontSize: '1.5rem', letterSpacing: '4px', background: 'var(--bg-input)', padding: '12px 24px', borderRadius: '12px', width: '100%' }}>
+                                {currentGroup.invite_code}
+                            </div>
+                            <button
+                                className="btn-primary"
+                                onClick={handleCopyInviteCode}
+                                style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+                            >
+                                {copied ? (
+                                    <><Check size={18} /> Copied!</>
+                                ) : (
+                                    <><Copy size={18} /> Copy Code</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {selectedExpenseForDetails && (
