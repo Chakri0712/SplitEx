@@ -786,7 +786,7 @@ export default function GroupDetails({ session, group, onBack }) {
 
                                 {/* Member Spending List */}
                                 {memberSpending.length > 0 && expenses.length > 0 && (
-                                    <div className="member-spending-list">
+                                    <div className="member-spending-list scrollable-feed">
                                         <h3>Members share</h3>
                                         {memberSpending.map((member, index) => {
                                             const colors = [
